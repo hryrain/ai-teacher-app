@@ -12,8 +12,6 @@
       height: 100vh; overflow: hidden;
       display: flex; flex-direction: column;
     }
-
-    /* Header */
     .header {
       background: #EDEDED;
       padding: 12px 16px;
@@ -35,13 +33,12 @@
 
     /* Profile Bar */
     .profile-bar {
-      background: #F5F5F5;
-      padding: 8px 12px;
+      background: #F5F5F5; padding: 8px 12px;
       display: flex; gap: 8px;
       border-bottom: 1px solid #E0E0E0;
-      flex-shrink: 0;
-      overflow-x: auto;
+      flex-shrink: 0; overflow-x: auto;
     }
+    .profile-bar.locked { display: none !important; }
     .profile-bar::-webkit-scrollbar { display: none; }
     .profile-chip {
       display: flex; align-items: center; gap: 6px;
@@ -57,13 +54,12 @@
 
     /* Subject Bar */
     .subject-bar {
-      background: #F5F5F5;
-      padding: 6px 12px;
-      display: flex; gap: 6px;
-      overflow-x: auto;
+      background: #F5F5F5; padding: 6px 12px;
+      display: flex; gap: 6px; overflow-x: auto;
       border-bottom: 1px solid #E0E0E0;
       flex-shrink: 0;
     }
+    .subject-bar.locked { display: none !important; }
     .subject-bar::-webkit-scrollbar { display: none; }
     .subject-chip {
       padding: 5px 12px; background: white;
@@ -73,18 +69,16 @@
     }
     .subject-chip.active { background: #07C160; color: white; border-color: #07C160; }
 
-    /* Safety Bar */
+    /* Safety / Warning */
     .safety-bar {
       background: #E8F8EF; color: #07C160;
       padding: 5px 12px; font-size: 11px;
       text-align: center; flex-shrink: 0;
     }
-    /* Warning Bar */
     .warning-bar {
       background: #FFF2F0; color: #CF1322;
       padding: 8px 12px; font-size: 12px;
-      text-align: center; flex-shrink: 0;
-      display: none;
+      text-align: center; flex-shrink: 0; display: none;
     }
     .warning-bar.active { display: block; }
 
@@ -94,8 +88,6 @@
       padding: 16px 12px;
       display: flex; flex-direction: column; gap: 16px;
     }
-
-    /* Welcome */
     .welcome { text-align: center; padding: 32px 20px; }
     .welcome-emoji { font-size: 56px; margin-bottom: 12px; }
     .welcome h1 { font-size: 20px; color: #111; margin-bottom: 8px; }
@@ -156,7 +148,7 @@
     .send-btn:active { background: #06AD56; }
     .send-btn:disabled { background: #CCC; }
 
-    /* Modals (bottom sheet) */
+    /* Modals */
     .modal-mask {
       position: fixed; inset: 0; background: rgba(0,0,0,0.5);
       display: none; align-items: flex-end; justify-content: center;
@@ -192,6 +184,14 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       display: flex; align-items: center; justify-content: center;
       font-size: 20px; cursor: pointer; z-index: 50;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Install hint */
+    .install-hint {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #fff; padding: 10px 16px;
+      border-bottom: 1px solid #e0e0e0; z-index: 200;
     }
 
     /* Toast */
@@ -213,8 +213,8 @@
       <div class="header-name" id="headerName">小亮老师</div>
       <div class="header-status">● 在线 · 苏格拉底式教学</div>
     </div>
-    <div class="header-actions">
-      <span onclick="openSettings()">⚙️</span>
+    <div class="header-actions" id="headerActions">
+      <span onclick="onSettingsClick()">⚙️</span>
     </div>
   </div>
 
@@ -252,8 +252,47 @@
     <button class="send-btn" id="sendBtn" onclick="sendMessage()">📤</button>
   </div>
 
-    <!-- Parent FAB (需要密码) -->
-  <div class="parent-fab" onclick="checkParentPwd()" title="家长面板">👨‍👩‍👧</div>
+  <!-- Parent FAB (需要密码) -->
+  <div class="parent-fab" id="parentFab" title="家长面板">👨‍👩‍👧</div>
+
+  <!-- Install Hint (微信手动引导) -->
+  <div class="install-hint" id="installHint" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div style="flex:1;">
+        <div style="font-size:14px;font-weight:600;color:#07C160;">📱 添加到主屏幕</div>
+        <div style="font-size:12px;color:#666;margin-top:2px;">像 App 一样使用，比浮窗方便！</div>
+      </div>
+      <button onclick="showInstallSteps()" style="background:#07C160;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">查看步骤</button>
+      <span onclick="closeInstallHint()" style="cursor:pointer;font-size:18px;color:#999;padding:4px;">×</span>
+    </div>
+  </div>
+
+  <!-- Install Steps Modal -->
+  <div class="modal-mask" id="installStepsModal" style="display:none;">
+    <div class="modal">
+      <div class="modal-title">📱 添加到主屏幕</div>
+      <div style="font-size:14px;line-height:2;" id="installStepsContent"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="closeInstallSteps()">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parent Password Modal -->
+  <div class="modal-mask" id="parentPwdModal">
+    <div class="modal">
+      <div class="modal-title">🔒 家长验证</div>
+      <div class="form-group">
+        <label>请输入家长密码</label>
+        <input type="password" id="parentPwdInput" placeholder="默认密码：123456" onkeydown="if(event.key==='Enter')verifyParentPwd()">
+        <small>首次使用请直接点确认（默认密码123456）</small>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-cancel" onclick="closeParentPwd()">取消</button>
+        <button class="btn btn-primary" onclick="verifyParentPwd()">确认</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Settings Modal -->
   <div class="modal-mask" id="settingsModal">
@@ -325,337 +364,335 @@
     </div>
   </div>
 
-  <script>
-    // ============ Profile System ============
-    function getProfiles() {
-      return JSON.parse(localStorage.getItem('ai_teacher_profiles') || '[]');
-    }
-    function saveProfiles(list) {
-      localStorage.setItem('ai_teacher_profiles', JSON.stringify(list));
-    }
-    function getActiveId() {
-      return localStorage.getItem('ai_teacher_active');
-    }
-    function setActiveId(id) {
-      localStorage.setItem('ai_teacher_active', id);
-    }
-    function getActiveProfile() {
-      const profiles = getProfiles();
-      return profiles.find(p => p.id === getActiveId()) || profiles[0];
-    }
-    function getHistory(profileId) {
-      return JSON.parse(localStorage.getItem(`ai_th_${profileId}`) || '[]');
-    }
-    function saveHistory(profileId, history) {
-      localStorage.setItem(`ai_th_${profileId}`, JSON.stringify(history.slice(-300)));
-    }
+<script>
+// ============ Profile System ============
+function getProfiles() {
+  return JSON.parse(localStorage.getItem('ai_teacher_profiles') || '[]');
+}
+function saveProfiles(list) {
+  localStorage.setItem('ai_teacher_profiles', JSON.stringify(list));
+}
+function getActiveId() {
+  return localStorage.getItem('ai_teacher_active');
+}
+function setActiveId(id) {
+  localStorage.setItem('ai_teacher_active', id);
+}
+function getActiveProfile() {
+  const profiles = getProfiles();
+  return profiles.find(p => p.id === getActiveId()) || profiles[0];
+}
+function getHistory(profileId) {
+  return JSON.parse(localStorage.getItem(`ai_th_${profileId}`) || '[]');
+}
+function saveHistory(profileId, history) {
+  localStorage.setItem(`ai_th_${profileId}`, JSON.stringify(history.slice(-300)));
+}
 
-    function ensureProfiles() {
-      let profiles = getProfiles();
-      let changed = false;
-      if (profiles.length === 0) {
-        profiles = [
-          { id:'jun', name:'君君', avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:10 },
-          { id:'duo', name:'多多', avatar:'🧒', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:9 }
-        ];
-        changed = true;
-        setActiveId('jun');
-      } else {
-        // 迁移旧数据：更新头像和年级
-        profiles.forEach(p => {
-          if (p.id === 'jun') {
-            if (p.avatar === '👧') { p.avatar = '👦'; changed = true; }
-            if (p.grade !== 10) { p.grade = 10; changed = true; }
-          }
-          if (p.id === 'duo') {
-            if (p.grade !== 9) { p.grade = 9; changed = true; }
-          }
-        });
-      }
-      if (changed) saveProfiles(profiles);
-      if (!getActiveId() || !profiles.find(p => p.id === getActiveId())) {
-        setActiveId(profiles[0].id);
-      }
-    }
-
-    function renderProfileBar() {
-      const bar = document.getElementById('profileBar');
-      const profiles = getProfiles();
-      bar.innerHTML = profiles.map(p => `
-        <div class="profile-chip ${p.id === getActiveId() ? 'active' : ''}"
-             onclick="switchToProfile('${p.id}')">
-          <div class="dot"></div>
-          ${p.avatar} ${p.name}
-        </div>
-      `).join('') + `
-        <div class="profile-chip profile-add" onclick="addProfile()">＋ 添加</div>
-      `;
-    }
-
-    function switchToProfile(id) {
-      setActiveId(id);
-      renderProfileBar();
-      loadChat();
-      showToast(`已切换到 ${getActiveProfile().name}`);
-    }
-
-    function addProfile() {
-      const name = prompt('小朋友的名字？');
-      if (!name) return;
-      const profiles = getProfiles();
-      const id = 'kid_' + Date.now();
-      const grade = parseInt(prompt('几年级？（填数字，如 8 代表初二）')||'0');
-      profiles.push({ id, name, avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade });
-      saveProfiles(profiles);
-      setActiveId(id);
-      renderProfileBar();
-      loadChat();
-    }
-
-    // ============ Subject Data (按年级) ============
-    // 初三/中考科目
-    const SUBJECT_LIST_JUNIOR = [
-      { key:'general',   label:'🌟 全科' },
-      { key:'chinese',  label:'📚 语文' },
-      { key:'math',     label:'🔢 数学' },
-      { key:'english',  label:'🔤 英语' },
-      { key:'physics',  label:'⚡ 物理' },
-      { key:'chemistry',label:'🧪 化学' },
-      { key:'politics', label:'⚖️ 道德与法治' },
-      { key:'history',  label:'🏛️ 历史' },
-      { key:'geography',label:'🌏 地理' },
-      { key:'biology',  label:'🌱 生物' },
-      { key:'pe',       label:'⚽ 体育' },
+function ensureProfiles() {
+  let profiles = getProfiles();
+  let changed = false;
+  if (profiles.length === 0) {
+    profiles = [
+      { id:'jun', name:'君君', avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:10 },
+      { id:'duo', name:'多多', avatar:'🧒', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:9 }
     ];
-    // 高一/高考选科科目 (3+1+2模式)
-    const SUBJECT_LIST_SENIOR = [
-      { key:'general',   label:'🌟 全科' },
-      { key:'chinese',   label:'📚 语文' },
-      { key:'math',      label:'🔢 数学' },
-      { key:'english',   label:'🔤 英语' },
-      { key:'physics',   label:'⚡ 物理' },
-      { key:'chemistry', label:'🧪 化学' },
-      { key:'biology',   label:'🌱 生物' },
-      { key:'history',   label:'🏛️ 历史' },
-      { key:'geography', label:'🌏 地理' },
-      { key:'politics',  label:'⚖️ 政治' },
-      { key:'it',        label:'💻 信息技术' },
-    ];
-
-    function getSubjectList(profile) {
-      const g = profile?.grade || 0;
-      if (g >= 10) return SUBJECT_LIST_SENIOR;   // 高中
-      if (g >= 7)  return SUBJECT_LIST_JUNIOR;    // 初中
-      return SUBJECT_LIST_JUNIOR;                   // 默认
-    }
-
-    function renderSubjectBar() {
-      const bar = document.getElementById('subjectBar');
-      const list = getSubjectList(getActiveProfile());
-      bar.innerHTML = list.map((s, i) =>
-        `<div class="subject-chip ${i===0?'active':''}" data-subject="${s.key}" onclick="selectSubject(this)">${s.label}</div>`
-      ).join('');
-    }
-
-    // ============ Subject Prompt Map ============
-    const SUBJECT_PROMPTS = {
-      general:   '你是一位全科辅导老师，擅长用简单有趣的方式解释各种知识，激发小朋友的学习兴趣。',
-      math:      '你是一位数学老师，擅长把抽象的数学概念变成具体的生活例子。你绝不直接给答案，而是用苏格拉底式提问引导小朋友自己思考出解题步骤。',
-      chinese:   '你是一位语文老师，热爱文字和阅读。你引导小朋友品味文字之美，不替他们写作文，而是帮他们理清思路、积累好词好句、激发表达欲。',
-      english:   '你是一位英语老师，让学英语变得有趣。你会用简单的英语和小朋友对话，纠正语法错误时很温和，鼓励小朋友大胆开口说。',
-      physics:   '你是一位物理老师，擅长用生活中的现象解释物理原理。你引导小朋友观察、思考、做小实验，理解力、热、光、电背后的规律。',
-      chemistry:  '你是一位化学老师，让化学反应变得像魔法一样有趣。你引导小朋友理解物质变化的原理，培养实验安全意识。',
-      politics:   '你是一位道德与法治老师，引导小朋友理解社会规则、培养公民意识。你用生活中的例子解释法律和社会规范，鼓励他们独立思考是非对错。',
-      history:    '你是一位历史老师，擅长把过去的故事讲得生动有趣。你引导小朋友理解历史人物的选择，培养批判性思维。',
-      geography:  '你是一位地理老师，带小朋友认识这个世界。你引导他们理解自然与人文的关系，培养空间思维和环保意识。',
-      biology:    '你是一位生物老师，引导小朋友认识生命的奥秘。你鼓励他们观察自然、理解身体、尊重生命。',
-      pe:         '你是一位体育老师，鼓励小朋友热爱运动、强健体魄。你教他们运动安全知识，培养坚持和团队合作的精神。',
-      it:        '你是一位信息技术老师，引导小朋友理解数字世界的基本原理。你鼓励他们动手实践，培养计算思维和信息安全意识。',
-    };
-
-    // ============ Chat State ============
-    let messages = [];
-    let isLoading = false;
-    let currentSubject = 'general';
-
-    function loadChat() {
-      const profile = getActiveProfile();
-      messages = getHistory(profile.id);
-      currentSubject = 'general';
-      renderSubjectBar();
-      renderMessages();
-    }
-
-    function renderMessages() {
-      const msgs = document.getElementById('messages');
-      // 只移除消息泡泡，保留 welcome 元素
-      Array.from(msgs.children).forEach(child => {
-        if (child.id !== 'welcome') child.remove();
-      });
-      if (messages.length === 0) {
-        const welcome = document.getElementById('welcome');
-        if (welcome) {
-          msgs.appendChild(welcome);
-          welcome.style.display = 'block';
-        }
-        return;
+    changed = true;
+    setActiveId('jun');
+  } else {
+    profiles.forEach(p => {
+      if (p.id === 'jun') {
+        if (p.avatar === '👧') { p.avatar = '👦'; changed = true; }
+        if (p.grade !== 10) { p.grade = 10; changed = true; }
       }
-      document.getElementById('welcome').style.display = 'none';
-      messages.forEach(m => {
-        const row = document.createElement('div');
-        row.className = `msg-row ${m.role}`;
-        const avatarContent = m.role === 'teacher' ? '🎓' : (getActiveProfile().avatar || '👦');
-        row.innerHTML = `
-          <div class="msg-avatar">${avatarContent}</div>
-          <div>
-            <div class="bubble">${escapeHtml(m.content)}</div>
-            <div class="msg-time">${formatTime(m.time)}</div>
-          </div>`;
-        msgs.appendChild(row);
-      });
-      msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    function escapeHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-    }
-    function formatTime(iso) {
-      try { return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
-      catch(e) { return ''; }
-    }
-
-    // ============ Subject ============
-    function selectSubject(el) {
-      document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
-      currentSubject = el.dataset.subject;
-      // Start new chat on subject switch
-      messages = [];
-      const msgs = document.getElementById('messages');
-      msgs.innerHTML = '';
-      msgs.appendChild(document.getElementById('welcome'));
-      document.getElementById('welcome').style.display = 'block';
-    }
-
-    // ============ Send ============
-    function sendQuick(text) {
-      document.getElementById('userInput').value = text;
-      sendMessage();
-    }
-    function autoResize(t) { t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,100)+'px'; }
-    function handleKeydown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
-
-    function sendMessage() {
-      const input = document.getElementById('userInput');
-      const text = input.value.trim();
-      if (!text || isLoading) return;
-
-      const profile = getActiveProfile();
-      if (!profile.apiKey) {
-        showToast('请先配置 API Key（点右上角⚙️）');
-        openSettings();
-        return;
+      if (p.id === 'duo') {
+        if (p.grade !== 9) { p.grade = 9; changed = true; }
       }
+    });
+  }
+  if (changed) saveProfiles(profiles);
+  if (!getActiveId() || !profiles.find(p => p.id === getActiveId())) {
+    setActiveId(profiles[0].id);
+  }
+}
 
-      messages.push({ role:'user', content:text, time:new Date().toISOString() });
-      input.value = '';
-      input.style.height = 'auto';
-      isLoading = true;
-      document.getElementById('sendBtn').disabled = true;
-      renderMessages();
-      showTyping();
+function renderProfileBar() {
+  const bar = document.getElementById('profileBar');
+  const profiles = getProfiles();
+  bar.innerHTML = profiles.map(p =>
+    `<div class="profile-chip ${p.id === getActiveId() ? 'active' : ''}"
+         onclick="switchToProfile('${p.id}')">
+      <div class="dot"></div>
+      ${p.avatar} ${p.name}
+    </div>`
+  ).join('') +
+    `<div class="profile-chip profile-add" onclick="addProfile()">＋ 添加</div>`;
+}
 
-      callAPI(profile, messages);
+function switchToProfile(id) {
+  setActiveId(id);
+  renderProfileBar();
+  loadChat();
+  showToast(`已切换到 ${getActiveProfile().name}`);
+}
+
+function addProfile() {
+  const name = prompt('小朋友的名字？');
+  if (!name) return;
+  const profiles = getProfiles();
+  const id = 'kid_' + Date.now();
+  const grade = parseInt(prompt('几年级？（填数字，如 8 代表初二）')) || 0;
+  profiles.push({ id, name, avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade });
+  saveProfiles(profiles);
+  setActiveId(id);
+  renderProfileBar();
+  loadChat();
+}
+
+// ============ Subject Data (按年级) ============
+const SUBJECT_LIST_JUNIOR = [
+  { key:'general',   label:'🌟 全科' },
+  { key:'chinese',  label:'📚 语文' },
+  { key:'math',     label:'🔢 数学' },
+  { key:'english',  label:'🔤 英语' },
+  { key:'physics',  label:'⚡ 物理' },
+  { key:'chemistry', label:'🧪 化学' },
+  { key:'politics', label:'⚖️ 道德与法治' },
+  { key:'history',   label:'🏛️ 历史' },
+  { key:'geography', label:'🌏 地理' },
+  { key:'biology',  label:'🌱 生物' },
+  { key:'pe',        label:'⚽ 体育' },
+];
+const SUBJECT_LIST_SENIOR = [
+  { key:'general',   label:'🌟 全科' },
+  { key:'chinese',   label:'📚 语文' },
+  { key:'math',      label:'🔢 数学' },
+  { key:'english',   label:'🔤 英语' },
+  { key:'physics',   label:'⚡ 物理' },
+  { key:'chemistry', label:'🧪 化学' },
+  { key:'biology',   label:'🌱 生物' },
+  { key:'history',    label:'🏛️ 历史' },
+  { key:'geography',  label:'🌏 地理' },
+  { key:'politics',  label:'⚖️ 政治' },
+  { key:'it',         label:'💻 信息技术' },
+];
+
+function getSubjectList(profile) {
+  const g = profile?.grade || 0;
+  if (g >= 10) return SUBJECT_LIST_SENIOR;
+  if (g >= 7)  return SUBJECT_LIST_JUNIOR;
+  return SUBJECT_LIST_JUNIOR;
+}
+
+function renderSubjectBar() {
+  const bar = document.getElementById('subjectBar');
+  const list = getSubjectList(getActiveProfile());
+  bar.innerHTML = list.map((s, i) =>
+    `<div class="subject-chip ${i===0?'active':''}" data-subject="${s.key}" onclick="selectSubject(this)">${s.label}</div>`
+  ).join('');
+}
+
+const SUBJECT_PROMPTS = {
+  general:   '你是一位全科辅导老师，擅长用简单有趣的方式解释各种知识，激发小朋友的学习兴趣。',
+  math:      '你是一位数学老师，擅长把抽象的数学概念变成具体的生活例子。你绝不直接给答案，而是用苏格拉底式提问引导小朋友自己思考出解题步骤。',
+  chinese:   '你是一位语文老师，热爱文字和阅读。你引导小朋友品味文字之美，不替他们写作文，而是帮他们理清思路、积累好词好句、激发表达欲。',
+  english:   '你是一位英语老师，让学英语变得有趣。你会用简单的英语和小朋友对话，纠正语法错误时很温和，鼓励小朋友大胆开口说。',
+  physics:   '你是一位物理老师，擅长用生活中的现象解释物理原理。你引导小朋友观察、思考、做小实验，理解力、热、光、电背后的规律。',
+  chemistry:  '你是一位化学老师，让化学反应变得像魔法一样有趣。你引导小朋友理解物质变化的原理，培养实验安全意识。',
+  politics:   '你是一位道德与法治老师，引导小朋友理解社会规则、培养公民意识。你用生活中的例子解释法律和社会规范，鼓励他们独立思考是非对错。',
+  history:    '你是一位历史老师，擅长把过去的故事讲得生动有趣。你引导小朋友理解历史人物的选择，培养批判性思维。',
+  geography:  '你是一位地理老师，带小朋友认识这个世界。你引导他们理解自然与人文的关系，培养空间思维和环保意识。',
+  biology:    '你是一位生物老师，引导小朋友认识生命的奥秘。你鼓励他们观察自然、理解身体、尊重生命。',
+  pe:         '你是一位体育老师，鼓励小朋友热爱运动、强健体魄。你教他们运动安全知识，培养坚持和团队合作的精神。',
+  it:        '你是一位信息技术老师，引导小朋友理解数字世界的基本原理。你鼓励他们动手实践，培养计算思维和信息安全意识。',
+};
+
+// ============ Chat State ============
+let messages = [];
+let isLoading = false;
+let currentSubject = 'general';
+
+function loadChat() {
+  const profile = getActiveProfile();
+  messages = getHistory(profile.id);
+  currentSubject = 'general';
+  renderSubjectBar();
+  renderMessages();
+  // 单用户模式：隐藏 Profile 栏和 Header 的设置按钮
+  if (isSingleUserMode()) {
+    document.getElementById('profileBar').style.display = 'none';
+    document.getElementById('headerActions').style.display = 'none';
+  }
+}
+
+function renderMessages() {
+  const msgs = document.getElementById('messages');
+  Array.from(msgs.children).forEach(child => {
+    if (child.id !== 'welcome') child.remove();
+  });
+  if (messages.length === 0) {
+    const welcome = document.getElementById('welcome');
+    if (welcome) {
+      msgs.appendChild(welcome);
+      welcome.style.display = 'block';
     }
+    return;
+  }
+  document.getElementById('welcome').style.display = 'none';
+  messages.forEach(m => {
+    const row = document.createElement('div');
+    row.className = `msg-row ${m.role}`;
+    const avatarContent = m.role === 'teacher' ? '🎓' : (getActiveProfile().avatar || '👦');
+    row.innerHTML = `
+      <div class="msg-avatar">${avatarContent}</div>
+      <div>
+        <div class="bubble">${escapeHtml(m.content)}</div>
+        <div class="msg-time">${formatTime(m.time)}</div>
+      </div>`;
+    msgs.appendChild(row);
+  });
+  msgs.scrollTop = msgs.scrollHeight;
+}
 
-    async function callAPI(profile, msgs) {
-      const url = profile.apiUrl || 'https://api.deepseek.com/v1/chat/completions';
-      const systemPrompt = buildSystemPrompt(profile, currentSubject);
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+function formatTime(iso) {
+  try { return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+  catch(e) { return ''; }
+}
 
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${profile.apiKey}`
-          },
-          body: JSON.stringify({
-            model: profile.model || 'deepseek-chat',
-            messages: [
-              { role:'system', content: systemPrompt },
-              ...msgs.filter(m => m.role!=='system').map(m => ({
-                role: m.role === 'user' ? 'user' : 'assistant',
-                content: m.content
-              }))
-            ],
-            temperature: 0.7,
-            max_tokens: 1500
-          })
-        });
+// ============ Subject ============
+function selectSubject(el) {
+  document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentSubject = el.dataset.subject;
+  messages = [];
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  msgs.appendChild(document.getElementById('welcome'));
+  document.getElementById('welcome').style.display = 'block';
+}
 
-        hideTyping();
-        if (!res.ok) {
-          const err = await res.json().catch(()=>({}));
-          throw new Error(err.error?.message || `API 错误 ${res.status}`);
-        }
-        const data = await res.json();
-        const reply = data.choices?.[0]?.message?.content || '抱歉，我没听清，能再说一遍吗？';
-        messages.push({ role:'teacher', content:reply, time:new Date().toISOString() });
-        renderMessages();
-        saveHistory(profile.id, messages);
-      } catch(e) {
-        hideTyping();
-        let errMsg = `哎呀，出了点小问题：${e.message}\n\n请检查 API Key 是否正确，或联系爸爸妈妈。`;
-        if (e.name === 'TypeError' && window.location.protocol === 'file:') {
-          errMsg = `⚠️ 无法发送消息！\n\n因为你直接双击打开了 HTML 文件，浏览器出于安全考虑阻止了网络请求。\n\n✅ 解决方法：\n1. 关闭此页面\n2. 打开文件夹里的「双击启动.bat」\n3. 从自动打开的网页使用`;
-        } else if (e.name === 'TypeError') {
-          errMsg = `⚠️ 网络连接失败\n\n请检查：\n1. 网络是否正常\n2. API 地址是否正确\n3. 公司/学校网络可能需要特殊设置`;
-        }
-        messages.push({ role:'teacher', content:errMsg, time:new Date().toISOString() });
-        renderMessages();
-      } finally {
-        isLoading = false;
-        document.getElementById('sendBtn').disabled = false;
-      }
+// ============ Send ============
+function sendQuick(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+function autoResize(t) { t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,100)+'px'; }
+function handleKeydown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+
+function sendMessage() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text || isLoading) return;
+
+  const profile = getActiveProfile();
+  if (!profile.apiKey) {
+    showToast('请先配置 API Key（点右上角⚙️）');
+    onSettingsClick();
+    return;
+  }
+
+  messages.push({ role:'user', content:text, time:new Date().toISOString() });
+  input.value = '';
+  input.style.height = 'auto';
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+  renderMessages();
+  showTyping();
+
+  callAPI(profile, messages);
+}
+
+async function callAPI(profile, msgs) {
+  const url = profile.apiUrl || 'https://api.deepseek.com/v1/chat/completions';
+  const systemPrompt = buildSystemPrompt(profile, currentSubject);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${profile.apiKey}`
+      },
+      body: JSON.stringify({
+        model: profile.model || 'deepseek-chat',
+        messages: [
+          { role:'system', content: systemPrompt },
+          ...msgs.filter(m => m.role!=='system').map(m => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.content
+          }))
+        ],
+        temperature: 0.7,
+        max_tokens: 1500
+      })
+    });
+
+    hideTyping();
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error?.message || `API 错误 ${res.status}`);
     }
-
-    function showTyping() {
-      const msgs = document.getElementById('messages');
-      const row = document.createElement('div');
-      row.className = 'msg-row teacher';
-      row.id = 'typingRow';
-      row.innerHTML = `
-        <div class="msg-avatar">🎓</div>
-        <div class="typing-indicator">
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-          <div class="typing-dot"></div>
-        </div>`;
-      msgs.appendChild(row);
-      msgs.scrollTop = msgs.scrollHeight;
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || '抱歉，我没听清，能再说一遍吗？';
+    messages.push({ role:'teacher', content:reply, time:new Date().toISOString() });
+    renderMessages();
+    saveHistory(profile.id, messages);
+  } catch(e) {
+    hideTyping();
+    let errMsg = `哎呀，出了点小问题：${e.message}\n\n请检查 API Key 是否正确，或联系爸爸妈妈。`;
+    if (e.name === 'TypeError' && window.location.protocol === 'file:') {
+      errMsg = `⚠️ 无法发送消息！\n\n因为你直接双击打开了 HTML 文件，浏览器出于安全考虑阻止了网络请求。\n\n✅ 解决方法：\n1. 关闭此页面\n2. 打开文件夹里的「双击启动.bat」\n3. 从自动打开的网页使用`;
+    } else if (e.name === 'TypeError') {
+      errMsg = `⚠️ 网络连接失败\n\n请检查：\n1. 网络是否正常\n2. API 地址是否正确\n3. 公司/学校网络可能需要特殊设置`;
     }
-    function hideTyping() {
-      document.getElementById('typingRow')?.remove();
-    }
+    messages.push({ role:'teacher', content:errMsg, time:new Date().toISOString() });
+    renderMessages();
+  } finally {
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
 
-    // ============ System Prompt ============
-    function buildSystemPrompt(profile, subject) {
-      const subjectPrompt = SUBJECT_PROMPTS[subject] || SUBJECT_PROMPTS.general;
-      const grade = profile.grade || 0;
-      let gradeDesc = '小学';
-      if (grade >= 7 && grade <= 9) gradeDesc = '初中';
-      else if (grade >= 10) gradeDesc = '高中';
-      let depthGuide = '';
-      if (grade >= 10) {
-        depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。';
-      } else if (grade >= 7) {
-        depthGuide = '对方是初中生，概念解释要具体，多用生活例子，可以适当引入抽象思维，鼓励批判性思考。';
-      } else if (grade >= 4) {
-        depthGuide = '对方是小学生中高年级，多用具体例子和比喻，语言生动，避免抽象概念。';
-      } else if (grade > 0) {
-        depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。';
-      }
-      return `你是"小亮老师"，一位专为${gradeDesc}生设计的AI学习伙伴。你正在和${profile.name}（${grade > 0 ? '约'+grade+'年级' : '小朋友'}）对话。
+function showTyping() {
+  const msgs = document.getElementById('messages');
+  const row = document.createElement('div');
+  row.className = 'msg-row teacher';
+  row.id = 'typingRow';
+  row.innerHTML = `
+    <div class="msg-avatar">🎓</div>
+    <div class="typing-indicator">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>`;
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function hideTyping() {
+  document.getElementById('typingRow')?.remove();
+}
+
+// ============ System Prompt ============
+function buildSystemPrompt(profile, subject) {
+  const subjectPrompt = SUBJECT_PROMPTS[subject] || SUBJECT_PROMPTS.general;
+  const grade = profile.grade || 0;
+  let gradeDesc = '小学';
+  if (grade >= 7 && grade <= 9) gradeDesc = '初中';
+  else if (grade >= 10) gradeDesc = '高中';
+  let depthGuide = '';
+  if (grade >= 10) {
+    depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。';
+  } else if (grade >= 7) {
+    depthGuide = '对方是初中生，概念解释要具体，多用生活例子，可以适当引入抽象思维，鼓励批判性思考。';
+  } else if (grade >= 4) {
+    depthGuide = '对方是小学生中高年级，多用具体例子和比喻，语言生动，避免抽象概念。';
+  } else if (grade > 0) {
+    depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。';
+  }
+  return `你是"小亮老师"，一位专为${gradeDesc}生设计的AI学习伙伴。你正在和${profile.name}（${grade > 0 ? '约'+grade+'年级' : '小朋友'}）对话。
 
 【你的教学理念】
 ${subjectPrompt}
@@ -686,192 +723,237 @@ ${depthGuide}
 - 语气像一个大哥哥/大姐姐，而不是严肃的老师
 
 注意：当前时间 ${new Date().toLocaleString('zh-CN')}，如果小朋友问"今天几号"等问题，可以参考这个时间。`;
-    }
+}
 
-    // ============ Settings ============
-    function openSettings() {
-      const p = getActiveProfile();
-      document.getElementById('settingName').value = p.name || '';
-      document.getElementById('settingApiKey').value = p.apiKey || '';
-      document.getElementById('settingApiUrl').value = p.apiUrl || '';
-      document.getElementById('settingModel').value = p.model || 'deepseek-chat';
-      document.getElementById('settingGrade').value = p.grade ?? 0;
-      document.getElementById('settingsModal').classList.add('active');
-    }
-    function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
-    function saveSettings() {
-      const profiles = getProfiles();
-      const idx = profiles.findIndex(p => p.id === getActiveId());
-      if (idx === -1) return;
-      profiles[idx].name = document.getElementById('settingName').value.trim() || profiles[idx].name;
-      profiles[idx].apiKey = document.getElementById('settingApiKey').value.trim();
-      profiles[idx].apiUrl = document.getElementById('settingApiUrl').value.trim();
-      profiles[idx].model = document.getElementById('settingModel').value.trim() || 'deepseek-chat';
-      profiles[idx].grade = parseInt(document.getElementById('settingGrade').value) || 0;
-      saveProfiles(profiles);
-      renderProfileBar();
-      closeSettings();
-      showToast('已保存！');
-    }
+// ============ Settings ============
+function onSettingsClick() {
+  // 微信内用 prompt 验证密码
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    const pwd = prompt('请输入家长密码（默认 123456）：');
+    if (pwd === null) return;
+    if (pwd !== getParentPwd()) { alert('密码错误！'); return; }
+    openSettingsModal();
+  } else {
+    checkParentPwd();
+  }
+}
 
-    // ============ Parent Password ============
-    const PARENT_PWD_KEY = 'ai_teacher_parent_pwd';
-    function getParentPwd() {
-      return localStorage.getItem(PARENT_PWD_KEY) || '123456';
-    }
-    function checkParentPwd() {
-      document.getElementById('parentPwdInput').value = '';
-      document.getElementById('parentPwdModal').classList.add('active');
-      setTimeout(() => document.getElementById('parentPwdInput').focus(), 100);
-    }
-    function closeParentPwd() {
-      document.getElementById('parentPwdModal').classList.remove('active');
-    }
-    function verifyParentPwd() {
-      const input = document.getElementById('parentPwdInput').value;
-      if (input === getParentPwd()) {
-        closeParentPwd();
-        openParentPanel();
-      } else {
-        showToast('密码错误，请重试');
-        document.getElementById('parentPwdInput').value = '';
-        document.getElementById('parentPwdInput').focus();
-      }
-    }
+function openSettingsModal() {
+  const p = getActiveProfile();
+  document.getElementById('settingName').value = p.name || '';
+  document.getElementById('settingApiKey').value = p.apiKey || '';
+  document.getElementById('settingApiUrl').value = p.apiUrl || '';
+  document.getElementById('settingModel').value = p.model || 'deepseek-chat';
+  document.getElementById('settingGrade').value = p.grade ?? 0;
+  document.getElementById('settingsModal').classList.add('active');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+function saveSettings() {
+  const profiles = getProfiles();
+  const idx = profiles.findIndex(p => p.id === getActiveId());
+  if (idx === -1) return;
+  profiles[idx].name = document.getElementById('settingName').value.trim() || profiles[idx].name;
+  profiles[idx].apiKey = document.getElementById('settingApiKey').value.trim();
+  profiles[idx].apiUrl = document.getElementById('settingApiUrl').value.trim();
+  profiles[idx].model = document.getElementById('settingModel').value.trim() || 'deepseek-chat';
+  profiles[idx].grade = parseInt(document.getElementById('settingGrade').value) || 0;
+  saveProfiles(profiles);
+  renderProfileBar();
+  closeSettings();
+  showToast('已保存！');
+}
 
-    // ============ Parent Panel ============
-    function openParentPanel() {
-      const p = getActiveProfile();
-      document.getElementById('pProfileLabel').textContent = `${p.avatar} ${p.name} 的学习记录`;
-      renderParentHistory(p);
-      document.getElementById('parentModal').classList.add('active');
-    }
-    function closeParentPanel() { document.getElementById('parentModal').classList.remove('active'); }
+// ============ Parent Password ============
+const PARENT_PWD_KEY = 'ai_teacher_parent_pwd';
+function getParentPwd() {
+  return localStorage.getItem(PARENT_PWD_KEY) || '123456';
+}
+function checkParentPwd() {
+  document.getElementById('parentPwdInput').value = '';
+  document.getElementById('parentPwdModal').classList.add('active');
+  setTimeout(() => document.getElementById('parentPwdInput').focus(), 100);
+}
+function closeParentPwd() {
+  document.getElementById('parentPwdModal').classList.remove('active');
+}
+function verifyParentPwd() {
+  const input = document.getElementById('parentPwdInput').value;
+  if (input === getParentPwd()) {
+    closeParentPwd();
+    openParentPanel();
+  } else {
+    showToast('密码错误，请重试');
+    document.getElementById('parentPwdInput').value = '';
+    document.getElementById('parentPwdInput').focus();
+  }
+}
 
-    function renderParentHistory(profile) {
-      const history = getHistory(profile.id);
-      const el = document.getElementById('pHistory');
-      if (history.length === 0) { el.innerHTML = '<div style="color:#999;">暂无对话记录</div>'; return; }
+// ============ Parent Panel ============
+function openParentPanel() {
+  const p = getActiveProfile();
+  document.getElementById('pProfileLabel').textContent = `${p.avatar} ${p.name} 的学习记录`;
+  renderParentHistory(p);
+  document.getElementById('parentModal').classList.add('active');
+}
+function closeParentPanel() { document.getElementById('parentModal').classList.remove('active'); }
 
-      // Group into sessions
-      let sessions = [];
-      let current = [];
-      history.forEach(m => {
-        if (m.role === 'user' && current.length > 0) { sessions.push([...current]); current = []; }
-        current.push(m);
-      });
-      if (current.length > 0) sessions.push(current);
+function renderParentHistory(profile) {
+  const history = getHistory(profile.id);
+  const el = document.getElementById('pHistory');
+  if (history.length === 0) { el.innerHTML = '<div style="color:#999;">暂无对话记录</div>'; return; }
+  let sessions = [];
+  let current = [];
+  history.forEach(m => {
+    if (m.role === 'user' && current.length > 0) { sessions.push([...current]); current = []; }
+    current.push(m);
+  });
+  if (current.length > 0) sessions.push(current);
+  el.innerHTML = sessions.slice(-8).reverse().map(s => {
+    const firstQ = s.find(m => m.role === 'user');
+    const time = s[0]?.time ? new Date(s[0].time).toLocaleString('zh-CN') : '';
+    return `<div style="padding:8px 0;border-bottom:1px solid #eee;">
+      <div style="font-weight:600;font-size:13px;">${escapeHtml(firstQ?.content?.substring(0,30)||'对话')}${firstQ?.content?.length>30?'...':''}</div>
+      <div style="font-size:11px;color:#999;">${time} · ${s.length}条消息</div>
+    </div>`;
+  }).join('');
+}
 
-      el.innerHTML = sessions.slice(-8).reverse().map(s => {
-        const firstQ = s.find(m => m.role === 'user');
-        const time = s[0]?.time ? new Date(s[0].time).toLocaleString('zh-CN') : '';
-        return `<div style="padding:8px 0;border-bottom:1px solid #eee;">
-          <div style="font-weight:600;font-size:13px;">${escapeHtml(firstQ?.content?.substring(0,30)||'对话')}${firstQ?.content?.length>30?'...':''}</div>
-          <div style="font-size:11px;color:#999;">${time} · ${s.length}条消息</div>
-        </div>`;
-      }).join('');
-    }
+function switchProfileParent() {
+  closeParentPanel();
+  document.getElementById('profileBar').scrollIntoView({ behavior:'smooth' });
+  showToast('请点击上方的小朋友名字切换');
+}
 
-    function switchProfileParent() {
-      closeParentPanel();
-      // Scroll to profile bar
-      document.getElementById('profileBar').scrollIntoView({ behavior:'smooth' });
-      showToast('请点击上方的小朋友名字切换');
-    }
+function saveParentPwd() {
+  const newPwd = document.getElementById('newParentPwd').value.trim();
+  if (newPwd) {
+    localStorage.setItem(PARENT_PWD_KEY, newPwd);
+    document.getElementById('newParentPwd').value = '';
+    showToast('密码已修改！');
+  } else {
+    showToast('密码未修改（未输入新密码）');
+  }
+}
 
-    function saveParentPwd() {
-      const newPwd = document.getElementById('newParentPwd').value.trim();
-      if (newPwd) {
-        localStorage.setItem(PARENT_PWD_KEY, newPwd);
-        document.getElementById('newParentPwd').value = '';
-        showToast('密码已修改！');
-      } else {
-        showToast('密码未修改（未输入新密码）');
-      }
-    }
+function exportHistory() {
+  const p = getActiveProfile();
+  const history = getHistory(p.id);
+  if (history.length === 0) { showToast('暂无记录'); return; }
+  let text = `小亮老师 - ${p.name} 的学习记录\n导出时间：${new Date().toLocaleString('zh-CN')}\n${'='.repeat(40)}\n\n`;
+  history.forEach(m => {
+    const who = m.role === 'user' ? p.name : '小亮老师';
+    const time = m.time ? new Date(m.time).toLocaleString('zh-CN') : '';
+    text += `[${time}] ${who}：\n${m.content}\n\n`;
+  });
+  const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `小亮老师_${p.name}_学习记录_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  showToast('已导出！');
+}
 
-    function exportHistory() {
-      const p = getActiveProfile();
-      const history = getHistory(p.id);
-      if (history.length === 0) { showToast('暂无记录'); return; }
-      let text = `小亮老师 - ${p.name} 的学习记录\n导出时间：${new Date().toLocaleString('zh-CN')}\n${'='.repeat(40)}\n\n`;
-      history.forEach(m => {
-        const who = m.role === 'user' ? p.name : '小亮老师';
-        const time = m.time ? new Date(m.time).toLocaleString('zh-CN') : '';
-        text += `[${time}] ${who}：\n${m.content}\n\n`;
-      });
-      const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `小亮老师_${p.name}_学习记录_${new Date().toISOString().slice(0,10)}.txt`;
-      a.click();
-      showToast('已导出！');
-    }
+// ============ Toast ============
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
 
-    // ============ Toast ============
-    function showToast(msg) {
-      const existing = document.querySelector('.toast');
-      if (existing) existing.remove();
-      const t = document.createElement('div');
-      t.className = 'toast';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 2500);
-    }
+// ============ Add to Home Screen Guide ============
+function isWeChat() {
+  return /MicroMessenger/i.test(navigator.userAgent);
+}
 
-    // ============ Add to Home Screen Guide ============
-    let deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      showInstallHint();
-    });
-    function showInstallHint() {
-      const existing = document.querySelector('.install-hint');
-      if (existing) return;
-      const hint = document.createElement('div');
-      hint.className = 'install-hint';
-      hint.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:600;color:#07C160;">📱 添加到主屏幕</div>
-            <div style="font-size:12px;color:#666;margin-top:2px;">像 App 一样使用，比浮窗方便！</div>
-          </div>
-          <button onclick="doInstall()" style="background:#07C160;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">添加</button>
-          <span onclick="this.parentElement.parentElement.remove()" style="cursor:pointer;font-size:18px;color:#999;padding:4px;">×</span>
-        </div>`;
-      hint.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fff;padding:10px 16px;border-bottom:1px solid #e0e0e0;z-index:200;animation:slideDown 0.3s ease;';
-      document.body.prepend(hint);
-    }
-    async function doInstall() {
-      if (!deferredPrompt) {
-        showToast('请点浏览器菜单 →「添加到主屏幕」');
-        return;
-      }
+function showInstallHint() {
+  const existing = document.querySelector('.install-hint');
+  if (existing) return;
+  const hint = document.getElementById('installHint');
+  hint.style.display = 'block';
+}
+function closeInstallHint() {
+  document.getElementById('installHint').style.display = 'none';
+  localStorage.setItem('ai_teacher_install_hint', '1');
+}
+
+function showInstallSteps() {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const steps = isAndroid
+    ? `📱 <b>安卓微信添加到主屏幕：</b><br><br>1. 点右上角 ⋯ 菜单<br>2. 选「添加到主屏幕」<br>3. 点「添加」完成<br><br>💡 添加后像 App 一样点开使用！`
+    : `📱 <b>iPhone 添加到主屏幕：</b><br><br>1. 点底部 ⬆️ 分享按钮<br>2. 下滑找「添加到主屏幕」<br>3. 点「添加」完成<br><br>💡 添加后像 App 一样点开使用！`;
+  document.getElementById('installStepsContent').innerHTML = steps;
+  document.getElementById('installStepsModal').style.display = 'flex';
+}
+function closeInstallSteps() {
+  document.getElementById('installStepsModal').style.display = 'none';
+}
+
+// ============ URL 参数解析（单用户模式） ============
+function getUrlUser() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('user'); // 'jun' | 'duo' | null
+}
+function isSingleUserMode() {
+  return !!getUrlUser();
+}
+
+// ============ Init ============
+ensureProfiles();
+
+// 单用户模式：锁定对应账号，隐藏切换栏
+const urlUser = getUrlUser();
+if (urlUser && ['jun','duo'].includes(urlUser)) {
+  setActiveId(urlUser);
+}
+
+renderProfileBar();
+loadChat();
+
+// 检测是否在 file:// 协议下
+if (window.location.protocol === 'file:') {
+  document.getElementById('warningBar').classList.add('active');
+}
+
+// Close modals on mask click
+document.querySelectorAll('.modal-mask').forEach(m => {
+  m.addEventListener('click', e => { if(e.target === m) m.classList.remove('active'); });
+});
+
+// Parent FAB click
+document.getElementById('parentFab').addEventListener('click', function() {
+  checkParentPwd();
+});
+
+// 微信内：显示添加到主屏幕引导
+if (isWeChat()) {
+  if (!localStorage.getItem('ai_teacher_install_hint')) {
+    showInstallHint();
+  }
+} else {
+  // 非微信：使用原生 PWA 安装提示
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstallHint();
+  });
+  // 替换 installHint 里的按钮行为
+  const origShow = showInstallHint;
+  // 按钮点击后触发安装
+  document.addEventListener('click', function(e) {
+    if (e.target.textContent === '添加' && deferredPrompt) {
       deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      document.querySelector('.install-hint')?.remove();
-      if (outcome === 'accepted') showToast('添加成功！现在像 App 一样使用了');
+      deferredPrompt.userChoice.then(() => {
+        deferredPrompt = null;
+        closeInstallHint();
+      });
     }
-    function closeInstallHint() {
-      document.querySelector('.install-hint')?.remove();
-    }
-
-    // ============ Init ============
-    ensureProfiles();
-    renderProfileBar();
-    loadChat();
-
-    // 检测是否在 file:// 协议下（直接双击打开 HTML 会导致 API 请求被阻止）
-    if (window.location.protocol === 'file:') {
-      document.getElementById('warningBar').classList.add('active');
-    }
-
-    // Close modals on mask click
-    document.querySelectorAll('.modal-mask').forEach(m => {
-      m.addEventListener('click', e => { if(e.target === m) m.classList.remove('active'); });
-    });
-  </script>
+  });
+}
+</script>
 </body>
 </html>
