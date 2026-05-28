@@ -27,8 +27,9 @@
     }
     .header-info { flex: 1; }
     .header-name { font-size: 16px; font-weight: 600; color: #111; }
-    .header-status { font-size: 12px; color: #7ED321; }
+    .header-status { font-size: 12px; color: #07C160; }
     .header-actions { display: flex; gap: 12px; }
+    .header-actions.hidden { display: none !important; }
     .header-actions span { font-size: 20px; cursor: pointer; padding: 4px; }
 
     /* Profile Bar */
@@ -38,7 +39,7 @@
       border-bottom: 1px solid #E0E0E0;
       flex-shrink: 0; overflow-x: auto;
     }
-    .profile-bar.locked { display: none !important; }
+    .profile-bar.hidden { display: none !important; }
     .profile-bar::-webkit-scrollbar { display: none; }
     .profile-chip {
       display: flex; align-items: center; gap: 6px;
@@ -59,7 +60,6 @@
       border-bottom: 1px solid #E0E0E0;
       flex-shrink: 0;
     }
-    .subject-bar.locked { display: none !important; }
     .subject-bar::-webkit-scrollbar { display: none; }
     .subject-chip {
       padding: 5px 12px; background: white;
@@ -218,10 +218,10 @@
     </div>
   </div>
 
-  <!-- Profile Bar -->
+  <!-- Profile Bar (单用户模式下隐藏) -->
   <div class="profile-bar" id="profileBar"></div>
 
-  <!-- Subject Bar (动态渲染) -->
+  <!-- Subject Bar -->
   <div class="subject-bar" id="subjectBar"></div>
 
   <div class="safety-bar">
@@ -248,11 +248,11 @@
   <!-- Input -->
   <div class="input-area">
     <textarea class="input-textarea" id="userInput" placeholder="问点什么..." rows="1"
-      onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+      onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
     <button class="send-btn" id="sendBtn" onclick="sendMessage()">📤</button>
   </div>
 
-  <!-- Parent FAB (需要密码) -->
+  <!-- Parent FAB (点击后要求密码) -->
   <div class="parent-fab" id="parentFab" title="家长面板">👨‍👩‍👧</div>
 
   <!-- Install Hint (微信手动引导) -->
@@ -402,7 +402,7 @@ function ensureProfiles() {
   } else {
     profiles.forEach(p => {
       if (p.id === 'jun') {
-        if (p.avatar === '👧') { p.avatar = '👦'; changed = true; }
+        if (p.avatar !== '👦') { p.avatar = '👦'; changed = true; }
         if (p.grade !== 10) { p.grade = 10; changed = true; }
       }
       if (p.id === 'duo') {
@@ -418,6 +418,11 @@ function ensureProfiles() {
 
 function renderProfileBar() {
   const bar = document.getElementById('profileBar');
+  // 单用户模式：不渲染切换栏（init 时已隐藏）
+  if (isSingleUserMode()) {
+    bar.innerHTML = '';
+    return;
+  }
   const profiles = getProfiles();
   bar.innerHTML = profiles.map(p =>
     `<div class="profile-chip ${p.id === getActiveId() ? 'active' : ''}"
@@ -504,7 +509,7 @@ const SUBJECT_PROMPTS = {
   geography:  '你是一位地理老师，带小朋友认识这个世界。你引导他们理解自然与人文的关系，培养空间思维和环保意识。',
   biology:    '你是一位生物老师，引导小朋友认识生命的奥秘。你鼓励他们观察自然、理解身体、尊重生命。',
   pe:         '你是一位体育老师，鼓励小朋友热爱运动、强健体魄。你教他们运动安全知识，培养坚持和团队合作的精神。',
-  it:        '你是一位信息技术老师，引导小朋友理解数字世界的基本原理。你鼓励他们动手实践，培养计算思维和信息安全意识。',
+  it:         '你是一位信息技术老师，引导小朋友理解数字世界的基本原理。你鼓励他们动手实践，培养计算思维和信息安全意识。',
 };
 
 // ============ Chat State ============
@@ -518,15 +523,15 @@ function loadChat() {
   currentSubject = 'general';
   renderSubjectBar();
   renderMessages();
-  // 单用户模式：隐藏 Profile 栏和 Header 的设置按钮
+  // 单用户模式：隐藏 Profile 栏
   if (isSingleUserMode()) {
-    document.getElementById('profileBar').style.display = 'none';
-    document.getElementById('headerActions').style.display = 'none';
+    document.getElementById('profileBar').classList.add('hidden');
   }
 }
 
 function renderMessages() {
   const msgs = document.getElementById('messages');
+  // 只移除消息行，保留 welcome
   Array.from(msgs.children).forEach(child => {
     if (child.id !== 'welcome') child.remove();
   });
@@ -580,7 +585,7 @@ function sendQuick(text) {
   sendMessage();
 }
 function autoResize(t) { t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,100)+'px'; }
-function handleKeydown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function handleKeyDown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
 
 function sendMessage() {
   const input = document.getElementById('userInput');
@@ -725,7 +730,7 @@ ${depthGuide}
 注意：当前时间 ${new Date().toLocaleString('zh-CN')}，如果小朋友问"今天几号"等问题，可以参考这个时间。`;
 }
 
-// ============ Settings ============
+// ============ Settings (密码保护) ============
 function onSettingsClick() {
   // 微信内用 prompt 验证密码
   if (/MicroMessenger/i.test(navigator.userAgent)) {
@@ -734,7 +739,9 @@ function onSettingsClick() {
     if (pwd !== getParentPwd()) { alert('密码错误！'); return; }
     openSettingsModal();
   } else {
-    checkParentPwd();
+    checkParentPwd(() => {
+      openSettingsModal();
+    });
   }
 }
 
@@ -768,9 +775,11 @@ const PARENT_PWD_KEY = 'ai_teacher_parent_pwd';
 function getParentPwd() {
   return localStorage.getItem(PARENT_PWD_KEY) || '123456';
 }
-function checkParentPwd() {
+function checkParentPwd(onSuccess) {
   document.getElementById('parentPwdInput').value = '';
-  document.getElementById('parentPwdModal').classList.add('active');
+  const modal = document.getElementById('parentPwdModal');
+  modal.classList.add('active');
+  modal._onSuccess = onSuccess || null;
   setTimeout(() => document.getElementById('parentPwdInput').focus(), 100);
 }
 function closeParentPwd() {
@@ -780,7 +789,12 @@ function verifyParentPwd() {
   const input = document.getElementById('parentPwdInput').value;
   if (input === getParentPwd()) {
     closeParentPwd();
-    openParentPanel();
+    const modal = document.getElementById('parentPwdModal');
+    if (modal._onSuccess) {
+      modal._onSuccess();
+    } else {
+      openParentPanel();
+    }
   } else {
     showToast('密码错误，请重试');
     document.getElementById('parentPwdInput').value = '';
@@ -820,6 +834,10 @@ function renderParentHistory(profile) {
 
 function switchProfileParent() {
   closeParentPanel();
+  if (isSingleUserMode()) {
+    showToast('单用户模式下无法切换');
+    return;
+  }
   document.getElementById('profileBar').scrollIntoView({ behavior:'smooth' });
   showToast('请点击上方的小朋友名字切换');
 }
@@ -892,22 +910,25 @@ function closeInstallSteps() {
   document.getElementById('installStepsModal').style.display = 'none';
 }
 
-// ============ URL 参数解析（单用户模式） ============
+// ============ URL 参数解析（单用户模式）============
 function getUrlUser() {
   const params = new URLSearchParams(window.location.search);
   return params.get('user'); // 'jun' | 'duo' | null
 }
 function isSingleUserMode() {
-  return !!getUrlUser();
+  const u = getUrlUser();
+  return u === 'jun' || u === 'duo';
 }
 
 // ============ Init ============
 ensureProfiles();
 
-// 单用户模式：锁定对应账号，隐藏切换栏
+// 单用户模式：锁定对应账号，隐藏切换栏和添加按钮
 const urlUser = getUrlUser();
 if (urlUser && ['jun','duo'].includes(urlUser)) {
   setActiveId(urlUser);
+  // 立即隐藏，避免闪烁
+  document.getElementById('profileBar').classList.add('hidden');
 }
 
 renderProfileBar();
@@ -923,9 +944,11 @@ document.querySelectorAll('.modal-mask').forEach(m => {
   m.addEventListener('click', e => { if(e.target === m) m.classList.remove('active'); });
 });
 
-// Parent FAB click
+// Parent FAB click → 要求密码
 document.getElementById('parentFab').addEventListener('click', function() {
-  checkParentPwd();
+  checkParentPwd(() => {
+    openParentPanel();
+  });
 });
 
 // 微信内：显示添加到主屏幕引导
@@ -941,9 +964,6 @@ if (isWeChat()) {
     deferredPrompt = e;
     showInstallHint();
   });
-  // 替换 installHint 里的按钮行为
-  const origShow = showInstallHint;
-  // 按钮点击后触发安装
   document.addEventListener('click', function(e) {
     if (e.target.textContent === '添加' && deferredPrompt) {
       deferredPrompt.prompt();
