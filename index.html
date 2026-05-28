@@ -91,6 +91,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",san
     <div class="header-status">● 在线 · 苏格拉底式教学</div>
   </div>
   <div class="header-actions" id="headerActions">
+    <span onclick="clearSubjectHistory()" title="新对话">✚</span>
     <span onclick="onSettingsClick()">⚙️</span>
   </div>
 </div>
@@ -430,11 +431,27 @@ var messages = [];
 var isLoading = false;
 var currentSubject = 'general';
 
+function getSubjectKey(profileId, subject) {
+  return 'ai_teacher_hist_' + profileId + '_' + subject;
+}
+function loadSubjectHistory(profileId, subject) {
+  try {
+    var raw = localStorage.getItem(getSubjectKey(profileId, subject));
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return [];
+}
+function saveSubjectHistory(profileId, subject, msgs) {
+  try {
+    localStorage.setItem(getSubjectKey(profileId, subject), JSON.stringify(msgs));
+  } catch(e) {}
+}
+
 function loadChat() {
   var profile = getActiveProfile();
   if (!profile) return;
-  messages = getHistory(profile.id);
-  currentSubject = 'general';
+  // 加载当前学科的对话历史
+  messages = loadSubjectHistory(profile.id, currentSubject);
   renderSubjectBar();
   renderMessages();
   if (isSingleUserMode()) {
@@ -443,7 +460,6 @@ function loadChat() {
     document.getElementById('profileBar').classList.remove('hidden');
   }
   var actions = document.getElementById('headerActions');
-  // 单用户模式下不隐藏设置按钮，点下去会弹密码验证
   actions.classList.remove('hidden');
 }
 
@@ -499,7 +515,13 @@ function selectSubject(el) {
   for (var i = 0; i < chips.length; i++) chips[i].classList.remove('active');
   el.classList.add('active');
   currentSubject = el.dataset.subject;
-  messages = [];
+  // 加载该学科的对话历史
+  var profile = getActiveProfile();
+  if (profile) {
+    messages = loadSubjectHistory(profile.id, currentSubject);
+  } else {
+    messages = [];
+  }
   renderMessages();
 }
 
@@ -521,6 +543,9 @@ function sendMessage() {
     return;
   }
   messages.push({ role:'user', content:text, time:new Date().toISOString() });
+  // 立即保存，防止中途刷新丢消息
+  var profile = getActiveProfile();
+  if (profile) saveSubjectHistory(profile.id, currentSubject, messages);
   input.value = '';
   input.style.height = 'auto';
   isLoading = true;
@@ -562,7 +587,7 @@ async function callAPI(profile) {
     var reply = ((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，我没听清，能再说一遍吗？');
     messages.push({ role:'teacher', content:reply, time:new Date().toISOString() });
     renderMessages();
-    saveHistory(profile.id, messages);
+    saveSubjectHistory(profile.id, currentSubject, messages);
   } catch(e) {
     hideTyping();
     var errMsg = '哎呀，出了点小问题：' + e.message + '\n\n请检查 API Key 是否正确，或联系爸爸妈妈。';
@@ -602,17 +627,25 @@ function buildSystemPrompt(profile, subject) {
   else if (grade >= 10) gradeDesc = '高中';
   var depthGuide = '';
   if (grade >= 10) {
-    depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。';
+    depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。回答要简洁明了，控制在3-5句话内，避免过长解释。';
   } else if (grade >= 7) {
-    depthGuide = '对方是初中生，概念解释要具体，多用生活例子，可以适当引入抽象思维，鼓励批判性思考。';
+    depthGuide = '对方是初中生，概念解释要具体，多用生活例子，可以适当引入抽象思维，鼓励批判性思考。回答要简明易懂，重点突出，避免冗长。';
   } else if (grade >= 4) {
-    depthGuide = '对方是小学生中高年级，多用具体例子和比喻，语言生动，避免抽象概念。';
+    depthGuide = '对方是小学生中高年级，多用具体例子和比喻，语言生动，避免抽象概念。回答要简短，用孩子能理解的语言。';
   } else if (grade > 0) {
-    depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。';
+    depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。回答要非常简短，一次只讲一个要点。';
   }
-  return '你是"小亮老师"，一位专为' + gradeDesc + '生设计的AI学习伙伴。你正在和' + profile.name + '（' + (grade > 0 ? '约'+grade+'年级' : '小朋友') + '）对话。\n\n【你的教学理念】\n' + subjectPrompt + '\n\n【年级适配要求】\n' + depthGuide + '\n\n【安全边界 - 必须严格遵守】\n1. 隐私保护：绝不询问、收集或透露任何个人隐私信息。如果小朋友主动透露，温和地提醒他们保护隐私，并建议和父母讨论。\n2. 适龄内容：只提供适合' + gradeDesc + '生的内容。\n3. 不直接给答案：当小朋友问作业题时，绝不直接给出完整答案。必须先确认他们理解了题目意思，引导他们回忆相关知识点，用苏格拉底式提问帮助他们自己找到答案。\n4. 鼓励式教学：永远保持耐心、温和、鼓励的态度。\n5. 敏感话题：遇到可能造成伤害的问题，必须谨慎回应，建议小朋友向父母或老师求助。\n6. 不确定时坦诚：如果你不确定答案，诚实地说"这个问题我也不太确定，我们一起查一查"。\n\n【沟通风格】\n- 用简单、清晰、温暖的中文交流\n- 适当使用emoji让对话更生动\n- 称呼小朋友为"' + profile.name + '"\n- 语气像一个大哥哥/大姐姐，而不是严肃的老师';
+  return '你是"小亮老师"，一位专为' + gradeDesc + '生设计的AI学习伙伴。你正在和' + profile.name + '（' + (grade > 0 ? '约'+grade+'年级' : '小朋友') + '）对话。\n\n【你的教学理念】\n' + subjectPrompt + '\n\n【年级适配要求】\n' + depthGuide + '\n\n【回答长度要求】\n无论对方年级，你的回答都要：\n1. 直击要点，不绕弯子\n2. 控制长度：核心回答不超过5句话\n3. 例子最多举1个，要精简\n4. 如果问题复杂，先给结论，再简要解释\n5. 避免"首先...其次...最后..."这类冗长结构\n\n【安全边界 - 必须严格遵守】\n1. 隐私保护：绝不询问、收集或透露任何个人隐私信息。如果小朋友主动透露，温和地提醒他们保护隐私，并建议和父母讨论。\n2. 适龄内容：只提供适合' + gradeDesc + '生的内容。\n3. 不直接给答案：当小朋友问作业题时，绝不直接给出完整答案。必须先确认他们理解了题目意思，引导他们回忆相关知识点，用苏格拉底式提问帮助他们自己找到答案。\n4. 鼓励式教学：永远保持耐心、温和、鼓励的态度。\n5. 敏感话题：遇到可能造成伤害的问题，必须谨慎回应，建议小朋友向父母或老师求助。\n6. 不确定时坦诚：如果你不确定答案，诚实地说"这个问题我也不太确定，我们一起查一查"。\n\n【沟通风格】\n- 用简单、清晰、温暖的中文交流\n- 适当使用emoji让对话更生动\n- 称呼小朋友为"' + profile.name + '"\n- 语气像一个大哥哥/大姐姐，而不是严肃的老师';
 }
 
+function clearSubjectHistory() {
+  if (!confirm('确定要清空【' + currentSubject + '】的对话记录吗？')) return;
+  messages = [];
+  var profile = getActiveProfile();
+  if (profile) saveSubjectHistory(profile.id, currentSubject, []);
+  renderMessages();
+  showToast('对话已清空');
+}
 // ============ Settings ============
 function onSettingsClick() {
   if (/MicroMessenger/i.test(navigator.userAgent)) {
