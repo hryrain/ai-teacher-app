@@ -69,6 +69,7 @@ body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",san
 .form-group label { font-size:14px; color:#333; margin-bottom:6px; display:block; }
 .form-group input { width:100%; padding:10px 12px; border:1px solid #E0E0E0; border-radius:8px; font-size:14px; font-family:inherit; outline:none; box-sizing:border-box; }
 .form-group input:focus { border-color:#07C160; }
+.form-group small { font-size:12px; color:#999; display:block; margin-top:4px; }
 .btn-row { display:flex; gap:12px; margin-top:20px; }
 .btn { flex:1; padding:12px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; border:none; }
 .btn-cancel { background:#F5F5F5; color:#333; }
@@ -311,12 +312,25 @@ function ensureProfiles() {
   }
 }
 
+// ============ Single User Mode ============
+function isSingleUserMode() {
+  var params = new URLSearchParams(window.location.search);
+  return params.get('user') === 'jun' || params.get('user') === 'duo';
+}
+function getUrlUserId() {
+  var params = new URLSearchParams(window.location.search);
+  return params.get('user');
+}
+
+// ============ Render Profile Bar ============
 function renderProfileBar() {
   var bar = document.getElementById('profileBar');
   if (isSingleUserMode()) {
     bar.innerHTML = '';
+    bar.classList.add('hidden');
     return;
   }
+  bar.classList.remove('hidden');
   var profiles = getProfiles();
   var html = '';
   for (var i = 0; i < profiles.length; i++) {
@@ -332,7 +346,8 @@ function switchToProfile(id) {
   setActiveId(id);
   renderProfileBar();
   loadChat();
-  showToast('已切换到 ' + getActiveProfile().name);
+  var prof = getActiveProfile();
+  if (prof) showToast('已切换到 ' + prof.name);
 }
 
 function addProfile() {
@@ -425,27 +440,38 @@ function loadChat() {
   if (isSingleUserMode()) {
     document.getElementById('profileBar').classList.add('hidden');
   }
+  var actions = document.getElementById('headerActions');
+  if (isSingleUserMode()) {
+    actions.classList.add('hidden');
+  } else {
+    actions.classList.remove('hidden');
+  }
 }
 
+// ============ Render Messages ============
 function renderMessages() {
   var msgs = document.getElementById('messages');
-  var children = msgs.children;
+  var welcome = document.getElementById('welcome');
+  // 移除所有消息行，但保留 welcome
   var toRemove = [];
-  for (var i = 0; i < children.length; i++) {
-    if (children[i].id !== 'welcome') toRemove.push(children[i]);
+  for (var i = 0; i < msgs.children.length; i++) {
+    var child = msgs.children[i];
+    if (child.id !== 'welcome') toRemove.push(child);
   }
   for (var j = 0; j < toRemove.length; j++) {
     msgs.removeChild(toRemove[j]);
   }
   if (messages.length === 0) {
-    var welcome = document.getElementById('welcome');
     if (welcome) {
-      msgs.appendChild(welcome);
+      // 确保 welcome 在 DOM 中
+      if (!welcome.parentElement || welcome.parentElement !== msgs) {
+        msgs.appendChild(welcome);
+      }
       welcome.style.display = 'block';
     }
     return;
   }
-  document.getElementById('welcome').style.display = 'none';
+  if (welcome) welcome.style.display = 'none';
   for (var k = 0; k < messages.length; k++) {
     var m = messages[k];
     var row = document.createElement('div');
@@ -458,8 +484,11 @@ function renderMessages() {
 }
 
 function escapeHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(s));
+  return div.innerHTML.replace(/\n/g, '<br>');
 }
+
 function formatTime(iso) {
   try { return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
   catch(e) { return ''; }
@@ -472,10 +501,7 @@ function selectSubject(el) {
   el.classList.add('active');
   currentSubject = el.dataset.subject;
   messages = [];
-  var msgs = document.getElementById('messages');
-  msgs.innerHTML = '';
-  msgs.appendChild(document.getElementById('welcome'));
-  document.getElementById('welcome').style.display = 'block';
+  renderMessages();
 }
 
 // ============ Send ============
@@ -502,12 +528,18 @@ function sendMessage() {
   document.getElementById('sendBtn').disabled = true;
   renderMessages();
   showTyping();
-  callAPI(profile, messages);
+  callAPI(profile);
 }
 
-async function callAPI(profile, msgs) {
+async function callAPI(profile) {
   var url = profile.apiUrl || 'https://api.deepseek.com/v1/chat/completions';
   var systemPrompt = buildSystemPrompt(profile, currentSubject);
+  // 构建完整对话历史（排除 welcome 提示消息）
+  var apiMessages = [{ role:'system', content: systemPrompt }];
+  for (var i = 0; i < messages.length; i++) {
+    var m = messages[i];
+    apiMessages.push({ role: m.role === 'teacher' ? 'assistant' : 'user', content: m.content });
+  }
   try {
     var res = await fetch(url, {
       method: 'POST',
@@ -517,10 +549,7 @@ async function callAPI(profile, msgs) {
       },
       body: JSON.stringify({
         model: profile.model || 'deepseek-chat',
-        messages: [
-          { role:'system', content: systemPrompt },
-          { role:'user', content: msgs[msgs.length-1].content }
-        ],
+        messages: apiMessages,
         temperature: 0.7,
         max_tokens: 1500
       })
@@ -531,7 +560,7 @@ async function callAPI(profile, msgs) {
       throw new Error((err.error && err.error.message) || 'API 错误 ' + res.status);
     }
     var data = await res.json();
-    var reply = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，我没听清，能再说一遍吗？';
+    var reply = ((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '抱歉，我没听清，能再说一遍吗？');
     messages.push({ role:'teacher', content:reply, time:new Date().toISOString() });
     renderMessages();
     saveHistory(profile.id, messages);
@@ -597,61 +626,69 @@ function onSettingsClick() {
   }
 }
 
-function openSettingsModal() {
-  var p = getActiveProfile();
-  if (!p) return;
-  document.getElementById('settingName').value = p.name || '';
-  document.getElementById('settingApiKey').value = p.apiKey || '';
-  document.getElementById('settingApiUrl').value = p.apiUrl || '';
-  document.getElementById('settingModel').value = p.model || 'deepseek-chat';
-  document.getElementById('settingGrade').value = p.grade != null ? p.grade : 0;
-  document.getElementById('settingsModal').classList.add('active');
-}
-function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
-function saveSettings() {
-  var profiles = getProfiles();
-  var idx = -1;
-  var activeId = getActiveId();
-  for (var i = 0; i < profiles.length; i++) {
-    if (profiles[i].id === activeId) { idx = i; break; }
-  }
-  if (idx === -1) return;
-  profiles[idx].name = document.getElementById('settingName').value.trim() || profiles[idx].name;
-  profiles[idx].apiKey = document.getElementById('settingApiKey').value.trim();
-  profiles[idx].apiUrl = document.getElementById('settingApiUrl').value.trim();
-  profiles[idx].model = document.getElementById('settingModel').value.trim() || 'deepseek-chat';
-  profiles[idx].grade = parseInt(document.getElementById('settingGrade').value) || 0;
-  saveProfiles(profiles);
-  renderProfileBar();
-  closeSettings();
-  showToast('已保存！');
+function checkParentPwd(callback) {
+  var modal = document.getElementById('parentPwdModal');
+  modal.classList.add('active');
+  modal._callback = callback || null;
 }
 
-// ============ Parent Password ============
-function checkParentPwd(onSuccess) {
-  document.getElementById('parentPwdInput').value = '';
-  document.getElementById('parentPwdModal')._onSuccess = onSuccess || null;
-  document.getElementById('parentPwdModal').classList.add('active');
-  setTimeout(function() { document.getElementById('parentPwdInput').focus(); }, 100);
+function verifyParentPwd() {
+  var input = document.getElementById('parentPwdInput');
+  var pwd = input.value;
+  if (pwd !== getParentPwd()) {
+    showToast('密码错误！');
+    input.value = '';
+    input.focus();
+    return;
+  }
+  closeParentPwd();
+  input.value = '';
+  var modal = document.getElementById('parentPwdModal');
+  if (modal._callback) {
+    modal._callback();
+    modal._callback = null;
+  } else {
+    openSettingsModal();
+  }
 }
+
 function closeParentPwd() {
   document.getElementById('parentPwdModal').classList.remove('active');
+  document.getElementById('parentPwdInput').value = '';
 }
-function verifyParentPwd() {
-  var input = document.getElementById('parentPwdInput').value;
-  if (input === getParentPwd()) {
-    closeParentPwd();
-    var modal = document.getElementById('parentPwdModal');
-    if (modal._onSuccess) {
-      modal._onSuccess();
-    } else {
-      openParentPanel();
+
+function openSettingsModal() {
+  var profile = getActiveProfile();
+  if (!profile) return;
+  document.getElementById('settingName').value = profile.name || '';
+  document.getElementById('settingApiKey').value = profile.apiKey || '';
+  document.getElementById('settingApiUrl').value = profile.apiUrl || '';
+  document.getElementById('settingModel').value = profile.model || 'deepseek-chat';
+  document.getElementById('settingGrade').value = profile.grade || '';
+  document.getElementById('settingsModal').classList.add('active');
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('active');
+}
+
+function saveSettings() {
+  var profiles = getProfiles();
+  var activeId = getActiveId();
+  for (var i = 0; i < profiles.length; i++) {
+    if (profiles[i].id === activeId) {
+      profiles[i].name = document.getElementById('settingName').value;
+      profiles[i].apiKey = document.getElementById('settingApiKey').value;
+      profiles[i].apiUrl = document.getElementById('settingApiUrl').value;
+      profiles[i].model = document.getElementById('settingModel').value;
+      profiles[i].grade = parseInt(document.getElementById('settingGrade').value) || 0;
+      break;
     }
-  } else {
-    showToast('密码错误，请重试');
-    document.getElementById('parentPwdInput').value = '';
-    document.getElementById('parentPwdInput').focus();
   }
+  saveProfiles(profiles);
+  closeSettings();
+  loadChat();
+  showToast('设置已保存！');
 }
 
 // ============ Change Password ============
@@ -659,18 +696,23 @@ function openChangePwdFromVerify() {
   closeParentPwd();
   openChangePwdModal();
 }
+
 function openChangePwdFromPanel() {
+  closeParentPanel();
   openChangePwdModal();
 }
+
 function openChangePwdModal() {
   document.getElementById('oldPwdInput').value = '';
   document.getElementById('newPwdInput').value = '';
   document.getElementById('confirmPwdInput').value = '';
   document.getElementById('changePwdModal').classList.add('active');
 }
+
 function closeChangePwdModal() {
   document.getElementById('changePwdModal').classList.remove('active');
 }
+
 function confirmChangePwd() {
   var oldInput = document.getElementById('oldPwdInput').value;
   var newInput = document.getElementById('newPwdInput').value;
@@ -699,59 +741,101 @@ function confirmChangePwd() {
 
 // ============ Parent Panel ============
 function openParentPanel() {
-  var p = getActiveProfile();
-  if (!p) return;
-  document.getElementById('pProfileLabel').textContent = p.avatar + ' ' + p.name + ' 的学习记录';
-  renderParentHistory(p);
-  document.getElementById('parentModal').classList.add('active');
-}
-function closeParentPanel() { document.getElementById('parentModal').classList.remove('active'); }
-
-function renderParentHistory(profile) {
+  var modal = document.getElementById('parentModal');
+  var profile = getActiveProfile();
+  if (!profile) return;
+  document.getElementById('pProfileLabel').textContent = profile.avatar + ' ' + profile.name + ' 的学习记录';
   var history = getHistory(profile.id);
-  var el = document.getElementById('pHistory');
-  if (history.length === 0) { el.innerHTML = '<div style="color:#999;">暂无对话记录</div>'; return; }
   var html = '';
-  var start = Math.max(0, history.length - 20);
-  for (var i = start; i < history.length; i++) {
-    var m = history[i];
-    if (m.role === 'user') {
-      var contentPreview = m.content.substring(0, 30) + (m.content.length > 30 ? '...' : '');
-      var timeStr = m.time ? new Date(m.time).toLocaleString('zh-CN') : '';
-      html += '<div style="padding:6px 0;border-bottom:1px solid #eee;"><div style="font-weight:600;font-size:13px;">' + escapeHtml(contentPreview) + '</div><div style="font-size:11px;color:#999;">' + timeStr + '</div></div>';
+  if (history.length === 0) {
+    html = '暂无记录';
+  } else {
+    var count = 0;
+    for (var i = history.length - 1; i >= 0 && count < 20; i--) {
+      var m = history[i];
+      html += '<div style="margin-bottom:6px;"><b>' + (m.role==='user'?'🧑':'🎓') + ' ' + (m.role==='user'?profile.name:'小亮老师') + '：</b>' + escapeHtml(m.content.substring(0,100)) + '</div>';
+      count++;
     }
   }
-  el.innerHTML = html || '<div style="color:#999;">暂无对话记录</div>';
+  document.getElementById('pHistory').innerHTML = html;
+  modal.classList.add('active');
+}
+
+function closeParentPanel() {
+  document.getElementById('parentModal').classList.remove('active');
 }
 
 function switchProfileParent() {
-  closeParentPanel();
-  if (isSingleUserMode()) {
-    showToast('单用户模式下无法切换');
-    return;
+  var profiles = getProfiles();
+  if (profiles.length <= 1) { showToast('只有一个小朋友'); return; }
+  var idx = -1;
+  for (var i = 0; i < profiles.length; i++) {
+    if (profiles[i].id === getActiveId()) { idx = i; break; }
   }
-  document.getElementById('profileBar').scrollIntoView({ behavior:'smooth' });
-  showToast('请点击上方的小朋友名字切换');
+  var next = profiles[(idx + 1) % profiles.length];
+  setActiveId(next.id);
+  closeParentPanel();
+  openParentPanel();
 }
 
 function exportHistory() {
-  var p = getActiveProfile();
-  if (!p) return;
-  var history = getHistory(p.id);
-  if (history.length === 0) { showToast('暂无记录'); return; }
-  var text = '小亮老师 - ' + p.name + ' 的学习记录\n导出时间：' + new Date().toLocaleString('zh-CN') + '\n' + '='.repeat(40) + '\n\n';
+  var profile = getActiveProfile();
+  if (!profile) return;
+  var history = getHistory(profile.id);
+  var text = '=== ' + profile.name + ' 的学习记录 ===\n\n';
   for (var i = 0; i < history.length; i++) {
     var m = history[i];
-    var who = m.role === 'user' ? p.name : '小亮老师';
-    var time = m.time ? new Date(m.time).toLocaleString('zh-CN') : '';
-    text += '[' + time + '] ' + who + '：\n' + m.content + '\n\n';
+    text += (m.role==='user' ? profile.name : '小亮老师') + '：\n' + m.content + '\n\n';
   }
-  var blob = new Blob([text], { type:'text/plain;charset=utf-8' });
+  var blob = new Blob([text], {type:'text/plain;charset=utf-8'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = '小亮老师_' + p.name + '_学习记录_' + new Date().toISOString().slice(0,10) + '.txt';
+  a.download = profile.name + '_学习记录_' + new Date().toISOString().slice(0,10) + '.txt';
   a.click();
+  URL.revokeObjectURL(a.href);
   showToast('已导出！');
+}
+
+// ============ Parent FAB ============
+document.getElementById('parentFab').addEventListener('click', function() {
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    var pwd = prompt('请输入家长密码（默认 123789）：');
+    if (pwd === null) return;
+    if (pwd !== getParentPwd()) { alert('密码错误！'); return; }
+    openParentPanel();
+  } else {
+    checkParentPwd(function() { openParentPanel(); });
+  }
+});
+
+// ============ Install Hint ============
+function showInstallSteps() {
+  document.getElementById('installStepsModal').classList.add('active');
+  var isWechat = /MicroMessenger/i.test(navigator.userAgent);
+  var steps = '';
+  if (isWechat) {
+    steps = '微信里不支持自动安装，请按以下步骤操作：<br><br>'
+      + '1. 点击右上角 <b>···</b><br>'
+      + '2. 选择 <b>在浏览器打开</b><br>'
+      + '3. 在浏览器中，点击底部 <b>分享</b> 按钮<br>'
+      + '4. 选择 <b>添加到主屏幕</b><br><br>'
+      + '（Safari 浏览器支持最好）';
+  } else {
+    steps = '1. 点击浏览器底部 <b>分享</b> 按钮 📤<br>'
+      + '2. 向下滑动，找到并点击 <b>"添加到主屏幕"</b><br>'
+      + '3. 点击 <b>"添加"</b>，完成！<br><br>'
+      + '（iPhone 用 Safari 浏览器效果最好）';
+  }
+  document.getElementById('installStepsContent').innerHTML = steps;
+}
+
+function closeInstallSteps() {
+  document.getElementById('installStepsModal').classList.remove('active');
+}
+
+function closeInstallHint() {
+  document.getElementById('installHint').style.display = 'none';
+  localStorage.setItem('ai_teacher_install_hint', 'done');
 }
 
 // ============ Toast ============
@@ -765,91 +849,32 @@ function showToast(msg) {
   setTimeout(function() { t.remove(); }, 2500);
 }
 
-// ============ Install Guide ============
-function isWeChat() {
-  return /MicroMessenger/i.test(navigator.userAgent);
-}
-
-function showInstallHint() {
-  var existing = document.querySelector('.install-hint');
-  if (existing) return;
-  document.getElementById('installHint').style.display = 'block';
-}
-function closeInstallHint() {
-  document.getElementById('installHint').style.display = 'none';
-  localStorage.setItem('ai_teacher_install_hint', '1');
-}
-
-function showInstallSteps() {
-  var isAndroid = /Android/i.test(navigator.userAgent);
-  var steps = isAndroid
-    ? '📱 <b>安卓微信添加到主屏幕：</b><br><br>1. 点右上角 ⋯ 菜单<br>2. 选「添加到主屏幕」<br>3. 点「添加」完成<br><br>💡 添加后像 App 一样点开使用！'
-    : '📱 <b>iPhone 添加到主屏幕：</b><br><br>1. 点底部 ⬆️ 分享按钮<br>2. 下滑找「添加到主屏幕」<br>3. 点「添加」完成<br><br>💡 添加后像 App 一样点开使用！';
-  document.getElementById('installStepsContent').innerHTML = steps;
-  document.getElementById('installStepsModal').classList.add('active');
-}
-function closeInstallSteps() {
-  document.getElementById('installStepsModal').classList.remove('active');
-}
-
-// ============ URL 参数（单用户模式）============
-function getUrlUser() {
-  var params = new URLSearchParams(window.location.search);
-  return params.get('user');
-}
-function isSingleUserMode() {
-  var u = getUrlUser();
-  return u === 'jun' || u === 'duo';
-}
-
 // ============ Init ============
-ensureProfiles();
+function init() {
+  ensureProfiles();
 
-var urlUser = getUrlUser();
-if (urlUser && (urlUser === 'jun' || urlUser === 'duo')) {
-  setActiveId(urlUser);
-  document.getElementById('profileBar').classList.add('hidden');
-}
-
-renderProfileBar();
-loadChat();
-
-if (window.location.protocol === 'file:') {
-  document.getElementById('warningBar').classList.add('active');
-}
-
-// Close modals on mask click
-document.querySelectorAll('.modal-mask').forEach(function(m) {
-  m.addEventListener('click', function(e) { if(e.target === m) m.classList.remove('active'); });
-});
-
-// Parent FAB click
-document.getElementById('parentFab').addEventListener('click', function() {
-  checkParentPwd(function() { openParentPanel(); });
-});
-
-// WeChat install hint
-if (isWeChat()) {
-  if (!localStorage.getItem('ai_teacher_install_hint')) {
-    showInstallHint();
+  // 单用户模式：根据 URL 参数锁定账号
+  var urlUser = getUrlUserId();
+  if (urlUser === 'jun') {
+    setActiveId('jun');
+  } else if (urlUser === 'duo') {
+    setActiveId('duo');
   }
-} else {
-  var deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault();
-    deferredPrompt = e;
-    showInstallHint();
-  });
-  document.addEventListener('click', function(e) {
-    if (e.target.textContent === '添加' && deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function() {
-        deferredPrompt = null;
-        closeInstallHint();
-      });
-    }
-  });
+
+  loadChat();
+
+  // 隐藏警告条（非 file:// 协议）
+  if (window.location.protocol !== 'file:') {
+    document.getElementById('warningBar').classList.remove('active');
+  }
+
+  // 显示安装引导（非微信，且未关闭过）
+  if (!/MicroMessenger/i.test(navigator.userAgent) && !localStorage.getItem('ai_teacher_install_hint')) {
+    document.getElementById('installHint').style.display = 'block';
+  }
 }
+
+init();
 </script>
 </body>
 </html>
