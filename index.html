@@ -439,13 +439,12 @@ function loadChat() {
   renderMessages();
   if (isSingleUserMode()) {
     document.getElementById('profileBar').classList.add('hidden');
+  } else {
+    document.getElementById('profileBar').classList.remove('hidden');
   }
   var actions = document.getElementById('headerActions');
-  if (isSingleUserMode()) {
-    actions.classList.add('hidden');
-  } else {
-    actions.classList.remove('hidden');
-  }
+  // 单用户模式下不隐藏设置按钮，点下去会弹密码验证
+  actions.classList.remove('hidden');
 }
 
 // ============ Render Messages ============
