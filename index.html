@@ -252,8 +252,8 @@
     <button class="send-btn" id="sendBtn" onclick="sendMessage()">📤</button>
   </div>
 
-  <!-- Parent FAB -->
-  <div class="parent-fab" onclick="openParentPanel()" title="家长面板">👨‍👩‍👧</div>
+    <!-- Parent FAB (需要密码) -->
+  <div class="parent-fab" onclick="checkParentPwd()" title="家长面板">👨‍👩‍👧</div>
 
   <!-- Settings Modal -->
   <div class="modal-mask" id="settingsModal">
@@ -312,8 +312,14 @@
         <label>导出学习记录</label>
         <button class="btn btn-cancel" style="width:100%" onclick="exportHistory()">📥 导出为文本文件</button>
       </div>
+      <div class="form-group">
+        <label>🔒 修改家长密码</label>
+        <input type="password" id="newParentPwd" placeholder="输入新密码（留空保持不变）">
+        <small>默认密码：123456，建议修改</small>
+      </div>
       <div class="btn-row">
         <button class="btn btn-cancel" onclick="switchProfileParent()">切换小朋友</button>
+        <button class="btn btn-primary" onclick="saveParentPwd()">保存密码</button>
         <button class="btn btn-cancel" onclick="closeParentPanel()">关闭</button>
       </div>
     </div>
@@ -708,6 +714,31 @@ ${depthGuide}
       showToast('已保存！');
     }
 
+    // ============ Parent Password ============
+    const PARENT_PWD_KEY = 'ai_teacher_parent_pwd';
+    function getParentPwd() {
+      return localStorage.getItem(PARENT_PWD_KEY) || '123456';
+    }
+    function checkParentPwd() {
+      document.getElementById('parentPwdInput').value = '';
+      document.getElementById('parentPwdModal').classList.add('active');
+      setTimeout(() => document.getElementById('parentPwdInput').focus(), 100);
+    }
+    function closeParentPwd() {
+      document.getElementById('parentPwdModal').classList.remove('active');
+    }
+    function verifyParentPwd() {
+      const input = document.getElementById('parentPwdInput').value;
+      if (input === getParentPwd()) {
+        closeParentPwd();
+        openParentPanel();
+      } else {
+        showToast('密码错误，请重试');
+        document.getElementById('parentPwdInput').value = '';
+        document.getElementById('parentPwdInput').focus();
+      }
+    }
+
     // ============ Parent Panel ============
     function openParentPanel() {
       const p = getActiveProfile();
@@ -748,6 +779,17 @@ ${depthGuide}
       showToast('请点击上方的小朋友名字切换');
     }
 
+    function saveParentPwd() {
+      const newPwd = document.getElementById('newParentPwd').value.trim();
+      if (newPwd) {
+        localStorage.setItem(PARENT_PWD_KEY, newPwd);
+        document.getElementById('newParentPwd').value = '';
+        showToast('密码已修改！');
+      } else {
+        showToast('密码未修改（未输入新密码）');
+      }
+    }
+
     function exportHistory() {
       const p = getActiveProfile();
       const history = getHistory(p.id);
@@ -775,6 +817,45 @@ ${depthGuide}
       t.textContent = msg;
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2500);
+    }
+
+    // ============ Add to Home Screen Guide ============
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      showInstallHint();
+    });
+    function showInstallHint() {
+      const existing = document.querySelector('.install-hint');
+      if (existing) return;
+      const hint = document.createElement('div');
+      hint.className = 'install-hint';
+      hint.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;color:#07C160;">📱 添加到主屏幕</div>
+            <div style="font-size:12px;color:#666;margin-top:2px;">像 App 一样使用，比浮窗方便！</div>
+          </div>
+          <button onclick="doInstall()" style="background:#07C160;color:white;border:none;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;">添加</button>
+          <span onclick="this.parentElement.parentElement.remove()" style="cursor:pointer;font-size:18px;color:#999;padding:4px;">×</span>
+        </div>`;
+      hint.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#fff;padding:10px 16px;border-bottom:1px solid #e0e0e0;z-index:200;animation:slideDown 0.3s ease;';
+      document.body.prepend(hint);
+    }
+    async function doInstall() {
+      if (!deferredPrompt) {
+        showToast('请点浏览器菜单 →「添加到主屏幕」');
+        return;
+      }
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.querySelector('.install-hint')?.remove();
+      if (outcome === 'accepted') showToast('添加成功！现在像 App 一样使用了');
+    }
+    function closeInstallHint() {
+      document.querySelector('.install-hint')?.remove();
     }
 
     // ============ Init ============
