@@ -221,15 +221,8 @@
   <!-- Profile Bar -->
   <div class="profile-bar" id="profileBar"></div>
 
-  <!-- Subject Bar -->
-  <div class="subject-bar" id="subjectBar">
-    <div class="subject-chip active" data-subject="general" onclick="selectSubject(this)">🌟 全科</div>
-    <div class="subject-chip" data-subject="math" onclick="selectSubject(this)">🔢 数学</div>
-    <div class="subject-chip" data-subject="chinese" onclick="selectSubject(this)">📚 语文</div>
-    <div class="subject-chip" data-subject="english" onclick="selectSubject(this)">🔤 英语</div>
-    <div class="subject-chip" data-subject="science" onclick="selectSubject(this)">🔬 科学</div>
-    <div class="subject-chip" data-subject="history" onclick="selectSubject(this)">🏛️ 历史</div>
-  </div>
+  <!-- Subject Bar (动态渲染) -->
+  <div class="subject-bar" id="subjectBar"></div>
 
   <div class="safety-bar">
     🛡️ 小亮老师会引导你思考，不直接给答案。遇到不确定的事，记得问爸爸妈妈！
@@ -353,14 +346,27 @@
 
     function ensureProfiles() {
       let profiles = getProfiles();
+      let changed = false;
       if (profiles.length === 0) {
         profiles = [
-          { id:'jun', name:'君君', avatar:'👧', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:9 },
-          { id:'duo', name:'多多', avatar:'🧒', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:8 }
+          { id:'jun', name:'君君', avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:10 },
+          { id:'duo', name:'多多', avatar:'🧒', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:9 }
         ];
-        saveProfiles(profiles);
+        changed = true;
         setActiveId('jun');
+      } else {
+        // 迁移旧数据：更新头像和年级
+        profiles.forEach(p => {
+          if (p.id === 'jun') {
+            if (p.avatar === '👧') { p.avatar = '👦'; changed = true; }
+            if (p.grade !== 10) { p.grade = 10; changed = true; }
+          }
+          if (p.id === 'duo') {
+            if (p.grade !== 9) { p.grade = 9; changed = true; }
+          }
+        });
       }
+      if (changed) saveProfiles(profiles);
       if (!getActiveId() || !profiles.find(p => p.id === getActiveId())) {
         setActiveId(profiles[0].id);
       }
@@ -400,6 +406,67 @@
       loadChat();
     }
 
+    // ============ Subject Data (按年级) ============
+    // 初三/中考科目
+    const SUBJECT_LIST_JUNIOR = [
+      { key:'general',   label:'🌟 全科' },
+      { key:'chinese',  label:'📚 语文' },
+      { key:'math',     label:'🔢 数学' },
+      { key:'english',  label:'🔤 英语' },
+      { key:'physics',  label:'⚡ 物理' },
+      { key:'chemistry',label:'🧪 化学' },
+      { key:'politics', label:'⚖️ 道德与法治' },
+      { key:'history',  label:'🏛️ 历史' },
+      { key:'geography',label:'🌏 地理' },
+      { key:'biology',  label:'🌱 生物' },
+      { key:'pe',       label:'⚽ 体育' },
+    ];
+    // 高一/高考选科科目 (3+1+2模式)
+    const SUBJECT_LIST_SENIOR = [
+      { key:'general',   label:'🌟 全科' },
+      { key:'chinese',   label:'📚 语文' },
+      { key:'math',      label:'🔢 数学' },
+      { key:'english',   label:'🔤 英语' },
+      { key:'physics',   label:'⚡ 物理' },
+      { key:'chemistry', label:'🧪 化学' },
+      { key:'biology',   label:'🌱 生物' },
+      { key:'history',   label:'🏛️ 历史' },
+      { key:'geography', label:'🌏 地理' },
+      { key:'politics',  label:'⚖️ 政治' },
+      { key:'it',        label:'💻 信息技术' },
+    ];
+
+    function getSubjectList(profile) {
+      const g = profile?.grade || 0;
+      if (g >= 10) return SUBJECT_LIST_SENIOR;   // 高中
+      if (g >= 7)  return SUBJECT_LIST_JUNIOR;    // 初中
+      return SUBJECT_LIST_JUNIOR;                   // 默认
+    }
+
+    function renderSubjectBar() {
+      const bar = document.getElementById('subjectBar');
+      const list = getSubjectList(getActiveProfile());
+      bar.innerHTML = list.map((s, i) =>
+        `<div class="subject-chip ${i===0?'active':''}" data-subject="${s.key}" onclick="selectSubject(this)">${s.label}</div>`
+      ).join('');
+    }
+
+    // ============ Subject Prompt Map ============
+    const SUBJECT_PROMPTS = {
+      general:   '你是一位全科辅导老师，擅长用简单有趣的方式解释各种知识，激发小朋友的学习兴趣。',
+      math:      '你是一位数学老师，擅长把抽象的数学概念变成具体的生活例子。你绝不直接给答案，而是用苏格拉底式提问引导小朋友自己思考出解题步骤。',
+      chinese:   '你是一位语文老师，热爱文字和阅读。你引导小朋友品味文字之美，不替他们写作文，而是帮他们理清思路、积累好词好句、激发表达欲。',
+      english:   '你是一位英语老师，让学英语变得有趣。你会用简单的英语和小朋友对话，纠正语法错误时很温和，鼓励小朋友大胆开口说。',
+      physics:   '你是一位物理老师，擅长用生活中的现象解释物理原理。你引导小朋友观察、思考、做小实验，理解力、热、光、电背后的规律。',
+      chemistry:  '你是一位化学老师，让化学反应变得像魔法一样有趣。你引导小朋友理解物质变化的原理，培养实验安全意识。',
+      politics:   '你是一位道德与法治老师，引导小朋友理解社会规则、培养公民意识。你用生活中的例子解释法律和社会规范，鼓励他们独立思考是非对错。',
+      history:    '你是一位历史老师，擅长把过去的故事讲得生动有趣。你引导小朋友理解历史人物的选择，培养批判性思维。',
+      geography:  '你是一位地理老师，带小朋友认识这个世界。你引导他们理解自然与人文的关系，培养空间思维和环保意识。',
+      biology:    '你是一位生物老师，引导小朋友认识生命的奥秘。你鼓励他们观察自然、理解身体、尊重生命。',
+      pe:         '你是一位体育老师，鼓励小朋友热爱运动、强健体魄。你教他们运动安全知识，培养坚持和团队合作的精神。',
+      it:        '你是一位信息技术老师，引导小朋友理解数字世界的基本原理。你鼓励他们动手实践，培养计算思维和信息安全意识。',
+    };
+
     // ============ Chat State ============
     let messages = [];
     let isLoading = false;
@@ -409,8 +476,7 @@
       const profile = getActiveProfile();
       messages = getHistory(profile.id);
       currentSubject = 'general';
-      document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
-      document.querySelector('.subject-chip').classList.add('active');
+      renderSubjectBar();
       renderMessages();
     }
 
@@ -568,15 +634,11 @@
 
     // ============ System Prompt ============
     function buildSystemPrompt(profile, subject) {
-      const child = profile.name || '小朋友';
+      const subjectPrompt = SUBJECT_PROMPTS[subject] || SUBJECT_PROMPTS.general;
       const grade = profile.grade || 0;
-
-      // 年级描述
       let gradeDesc = '小学';
       if (grade >= 7 && grade <= 9) gradeDesc = '初中';
       else if (grade >= 10) gradeDesc = '高中';
-
-      // 根据年级调整深度
       let depthGuide = '';
       if (grade >= 10) {
         depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。';
@@ -587,20 +649,10 @@
       } else if (grade > 0) {
         depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。';
       }
-
-      const subjects = {
-        general: '你是一位全科辅导老师，擅长用简单有趣的方式解释各种知识，激发小朋友的学习兴趣。',
-        math: '你是一位数学老师，擅长把抽象的数学概念变成具体的生活例子。你绝不直接给答案，而是用苏格拉底式提问引导小朋友自己思考出解题步骤。',
-        chinese: '你是一位语文老师，热爱文字和阅读。你引导小朋友品味文字之美，不替他们写作文，而是帮他们理清思路、积累好词好句、激发表达欲。',
-        english: '你是一位英语老师，让学英语变得有趣。你会用简单的英语和小朋友对话，纠正语法错误时很温和，鼓励小朋友大胆开口说。',
-        science: '你是一位科学老师，对世界充满好奇。你鼓励小朋友观察现象、提出问题、做假设，像小科学家一样思考。',
-        history: '你是一位历史老师，擅长把过去的故事讲得生动有趣。你引导小朋友理解历史人物的选择，培养批判性思维。'
-      };
-
-      return `你是"小亮老师"，一位专为${gradeDesc}生设计的AI学习伙伴。你正在和${child}（${grade > 0 ? '约'+grade+'年级' : '小朋友'}）对话。
+      return `你是"小亮老师"，一位专为${gradeDesc}生设计的AI学习伙伴。你正在和${profile.name}（${grade > 0 ? '约'+grade+'年级' : '小朋友'}）对话。
 
 【你的教学理念】
-${subjects[subject] || subjects.general}
+${subjectPrompt}
 
 【年级适配要求】
 ${depthGuide}
@@ -624,7 +676,7 @@ ${depthGuide}
 - 适当使用emoji让对话更生动（但不要过度）
 - 回答长度适中，不要太长让小朋友失去耐心
 - 多用提问引导思考，而不是灌输知识
-- 称呼小朋友为"${child}"
+- 称呼小朋友为"${profile.name}"
 - 语气像一个大哥哥/大姐姐，而不是严肃的老师
 
 注意：当前时间 ${new Date().toLocaleString('zh-CN')}，如果小朋友问"今天几号"等问题，可以参考这个时间。`;
