@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>小亮老师</title>
+  <style>
+    * { margin:0; padding:0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      background: #EDEDED;
+      height: 100vh; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: #EDEDED;
+      padding: 12px 16px;
+      display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid #D9D9D9;
+      flex-shrink: 0;
+    }
+    .header-avatar {
+      width: 40px; height: 40px; border-radius: 6px;
+      background: #07C160; color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .header-info { flex: 1; }
+    .header-name { font-size: 16px; font-weight: 600; color: #111; }
+    .header-status { font-size: 12px; color: #7ED321; }
+    .header-actions { display: flex; gap: 12px; }
+    .header-actions span { font-size: 20px; cursor: pointer; padding: 4px; }
+
+    /* Profile Bar */
+    .profile-bar {
+      background: #F5F5F5;
+      padding: 8px 12px;
+      display: flex; gap: 8px;
+      border-bottom: 1px solid #E0E0E0;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .profile-bar::-webkit-scrollbar { display: none; }
+    .profile-chip {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; background: white;
+      border: 2px solid transparent; border-radius: 16px;
+      font-size: 13px; cursor: pointer; transition: all 0.2s;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .profile-chip.active { border-color: #07C160; background: #E8F8EF; }
+    .profile-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: #CCC; }
+    .profile-chip.active .dot { background: #07C160; }
+    .profile-add { border-style: dashed !important; color: #999 !important; }
+
+    /* Subject Bar */
+    .subject-bar {
+      background: #F5F5F5;
+      padding: 6px 12px;
+      display: flex; gap: 6px;
+      overflow-x: auto;
+      border-bottom: 1px solid #E0E0E0;
+      flex-shrink: 0;
+    }
+    .subject-bar::-webkit-scrollbar { display: none; }
+    .subject-chip {
+      padding: 5px 12px; background: white;
+      border: 1px solid #E0E0E0; border-radius: 14px;
+      font-size: 12px; white-space: nowrap; cursor: pointer;
+      flex-shrink: 0; transition: all 0.2s;
+    }
+    .subject-chip.active { background: #07C160; color: white; border-color: #07C160; }
+
+    /* Safety Bar */
+    .safety-bar {
+      background: #E8F8EF; color: #07C160;
+      padding: 5px 12px; font-size: 11px;
+      text-align: center; flex-shrink: 0;
+    }
+    /* Warning Bar */
+    .warning-bar {
+      background: #FFF2F0; color: #CF1322;
+      padding: 8px 12px; font-size: 12px;
+      text-align: center; flex-shrink: 0;
+      display: none;
+    }
+    .warning-bar.active { display: block; }
+
+    /* Messages */
+    .messages {
+      flex: 1; overflow-y: auto;
+      padding: 16px 12px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+
+    /* Welcome */
+    .welcome { text-align: center; padding: 32px 20px; }
+    .welcome-emoji { font-size: 56px; margin-bottom: 12px; }
+    .welcome h1 { font-size: 20px; color: #111; margin-bottom: 8px; }
+    .welcome p { font-size: 14px; color: #888; line-height: 1.6; }
+    .welcome-tips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
+    .welcome-tip {
+      padding: 8px 14px; background: white; border-radius: 16px;
+      font-size: 13px; color: #333; cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .welcome-tip:active { background: #f0f0f0; }
+
+    /* Bubbles */
+    .msg-row { display: flex; gap: 8px; max-width: 85%; animation: fadeIn 0.25s ease; }
+    .msg-row.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg-row.teacher { align-self: flex-start; }
+    .msg-avatar {
+      width: 36px; height: 36px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .msg-row.teacher .msg-avatar { background: #07C160; color: white; }
+    .msg-row.user .msg-avatar { background: #A8E063; color: white; }
+    .bubble {
+      padding: 10px 14px; border-radius: 6px;
+      font-size: 15px; line-height: 1.6; word-break: break-word;
+    }
+    .msg-row.teacher .bubble { background: white; border-top-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .msg-row.user .bubble { background: #95EC69; border-top-right-radius: 2px; color: #111; }
+    .msg-time { font-size: 11px; color: #999; margin-top: 4px; padding: 0 4px; }
+    .msg-row.user .msg-time { text-align: right; }
+
+    /* Typing */
+    .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; background: white; border-radius: 6px; border-top-left-radius: 2px; width: fit-content; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .typing-dot { width: 8px; height: 8px; background: #999; border-radius: 50%; animation: typing 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%,60%,100% { opacity:0.3; transform:translateY(0); } 30% { opacity:1; transform:translateY(-4px); } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+    /* Input */
+    .input-area {
+      background: #F5F5F5; padding: 8px 12px;
+      display: flex; align-items: flex-end; gap: 8px;
+      border-top: 1px solid #E0E0E0; flex-shrink: 0;
+    }
+    .input-textarea {
+      flex: 1; padding: 8px 12px; border: none; border-radius: 4px;
+      font-size: 15px; font-family: inherit; resize: none; outline: none;
+      max-height: 100px; line-height: 1.5; background: white;
+    }
+    .send-btn {
+      width: 40px; height: 40px; background: #07C160; color: white;
+      border: none; border-radius: 4px; font-size: 18px;
+      cursor: pointer; flex-shrink: 0; display: flex;
+      align-items: center; justify-content: center;
+    }
+    .send-btn:active { background: #06AD56; }
+    .send-btn:disabled { background: #CCC; }
+
+    /* Modals (bottom sheet) */
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: none; align-items: flex-end; justify-content: center;
+      z-index: 100;
+    }
+    .modal-mask.active { display: flex; }
+    .modal {
+      background: white; width: 100%; max-width: 500px;
+      border-radius: 16px 16px 0 0; padding: 20px;
+      max-height: 80vh; overflow-y: auto;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+    .modal-title { font-size: 17px; font-weight: 600; text-align: center; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { font-size: 14px; color: #333; margin-bottom: 6px; display: block; }
+    .form-group input, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #E0E0E0;
+      border-radius: 8px; font-size: 14px; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: #07C160; }
+    .form-group small { font-size: 12px; color: #999; margin-top: 4px; display: block; }
+    .btn-row { display: flex; gap: 12px; margin-top: 20px; }
+    .btn { flex:1; padding:12px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; border:none; }
+    .btn-cancel { background: #F5F5F5; color: #333; }
+    .btn-primary { background: #07C160; color: white; }
+    .btn-primary:active { background: #06AD56; }
+
+    /* Parent FAB */
+    .parent-fab {
+      position: fixed; bottom: 80px; right: 16px;
+      width: 44px; height: 44px; background: white; border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; cursor: pointer; z-index: 50;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.75); color: white;
+      padding: 10px 20px; border-radius: 8px;
+      font-size: 14px; z-index: 200;
+      animation: fadeIn 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-avatar">🎓</div>
+    <div class="header-info">
+      <div class="header-name" id="headerName">小亮老师</div>
+      <div class="header-status">● 在线 · 苏格拉底式教学</div>
+    </div>
+    <div class="header-actions">
+      <span onclick="openSettings()">⚙️</span>
+    </div>
+  </div>
+
+  <!-- Profile Bar -->
+  <div class="profile-bar" id="profileBar"></div>
+
+  <!-- Subject Bar -->
+  <div class="subject-bar" id="subjectBar">
+    <div class="subject-chip active" data-subject="general" onclick="selectSubject(this)">🌟 全科</div>
+    <div class="subject-chip" data-subject="math" onclick="selectSubject(this)">🔢 数学</div>
+    <div class="subject-chip" data-subject="chinese" onclick="selectSubject(this)">📚 语文</div>
+    <div class="subject-chip" data-subject="english" onclick="selectSubject(this)">🔤 英语</div>
+    <div class="subject-chip" data-subject="science" onclick="selectSubject(this)">🔬 科学</div>
+    <div class="subject-chip" data-subject="history" onclick="selectSubject(this)">🏛️ 历史</div>
+  </div>
+
+  <div class="safety-bar">
+    🛡️ 小亮老师会引导你思考，不直接给答案。遇到不确定的事，记得问爸爸妈妈！
+  </div>
+  <div class="warning-bar" id="warningBar">
+    ⚠️ 当前是直接打开文件的方式，消息发不出去。请关闭此页面，用文件夹里的「双击启动.bat」启动。
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-emoji">🎓</div>
+      <h1>你好！我是小亮老师</h1>
+      <p>我不会直接给你答案，但会陪你一起思考。<br>选一个学科，开始问吧～</p>
+      <div class="welcome-tips">
+        <div class="welcome-tip" onclick="sendQuick('这道题怎么做？')">📝 这道题怎么做？</div>
+        <div class="welcome-tip" onclick="sendQuick('为什么天是蓝色的？')">🌌 为什么天是蓝的？</div>
+        <div class="welcome-tip" onclick="sendQuick('帮我检查一下作业')">✅ 帮我检查作业</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <textarea class="input-textarea" id="userInput" placeholder="问点什么..." rows="1"
+      onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">📤</button>
+  </div>
+
+  <!-- Parent FAB -->
+  <div class="parent-fab" onclick="openParentPanel()" title="家长面板">👨‍👩‍👧</div>
+
+  <!-- Settings Modal -->
+  <div class="modal-mask" id="settingsModal">
+    <div class="modal">
+      <div class="modal-title">⚙️ 设置</div>
+      <div class="form-group">
+        <label>小朋友名字</label>
+        <input type="text" id="settingName" placeholder="名字">
+      </div>
+      <div class="form-group">
+        <label>API Key <small style="color:#e74c3c;">（必填）</small></label>
+        <input type="password" id="settingApiKey" placeholder="sk-...">
+        <small>Key 只保存在本设备，不会上传任何人</small>
+      </div>
+      <div class="form-group">
+        <label>API 地址（可选）</label>
+        <input type="text" id="settingApiUrl" placeholder="DeepSeek留空即可">
+        <small>DeepSeek 用户留空即可，自动用 https://api.deepseek.com</small>
+      </div>
+      <div class="form-group">
+        <label>模型</label>
+        <input type="text" id="settingModel" value="deepseek-chat">
+        <small>DeepSeek-V3 填 deepseek-chat，R1 填 deepseek-reasoner</small>
+      </div>
+      <div class="form-group">
+        <label>年级（0=未设置）</label>
+        <input type="number" id="settingGrade" min="0" max="12" placeholder="如：9=初三，10=高一">
+        <small>君君填 10（高一），多多填 9（初三）</small>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-cancel" onclick="closeSettings()">取消</button>
+        <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parent Modal -->
+  <div class="modal-mask" id="parentModal">
+    <div class="modal">
+      <div class="modal-title">👨‍👩‍👧 家长面板</div>
+      <div class="form-group">
+        <label id="pProfileLabel">👦 君君 的学习记录</label>
+        <div id="pHistory" style="font-size:13px; color:#999; line-height:1.8;">暂无记录</div>
+      </div>
+      <div class="form-group">
+        <label>安全规则</label>
+        <div style="background:#f5f5f5; padding:12px; border-radius:8px; font-size:13px; line-height:2;">
+          ✅ 隐私保护（不收集个人信息）<br>
+          ✅ 适龄内容过滤<br>
+          ✅ 苏格拉底式教学（不直接给答案）<br>
+          ✅ 鼓励引导式对话<br>
+          ✅ 敏感话题自动规避
+        </div>
+      </div>
+      <div class="form-group">
+        <label>导出学习记录</label>
+        <button class="btn btn-cancel" style="width:100%" onclick="exportHistory()">📥 导出为文本文件</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-cancel" onclick="switchProfileParent()">切换小朋友</button>
+        <button class="btn btn-cancel" onclick="closeParentPanel()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============ Profile System ============
+    function getProfiles() {
+      return JSON.parse(localStorage.getItem('ai_teacher_profiles') || '[]');
+    }
+    function saveProfiles(list) {
+      localStorage.setItem('ai_teacher_profiles', JSON.stringify(list));
+    }
+    function getActiveId() {
+      return localStorage.getItem('ai_teacher_active');
+    }
+    function setActiveId(id) {
+      localStorage.setItem('ai_teacher_active', id);
+    }
+    function getActiveProfile() {
+      const profiles = getProfiles();
+      return profiles.find(p => p.id === getActiveId()) || profiles[0];
+    }
+    function getHistory(profileId) {
+      return JSON.parse(localStorage.getItem(`ai_th_${profileId}`) || '[]');
+    }
+    function saveHistory(profileId, history) {
+      localStorage.setItem(`ai_th_${profileId}`, JSON.stringify(history.slice(-300)));
+    }
+
+    function ensureProfiles() {
+      let profiles = getProfiles();
+      if (profiles.length === 0) {
+        profiles = [
+          { id:'jun', name:'君君', avatar:'👧', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:9 },
+          { id:'duo', name:'多多', avatar:'🧒', apiKey:'', apiUrl:'', model:'deepseek-chat', grade:8 }
+        ];
+        saveProfiles(profiles);
+        setActiveId('jun');
+      }
+      if (!getActiveId() || !profiles.find(p => p.id === getActiveId())) {
+        setActiveId(profiles[0].id);
+      }
+    }
+
+    function renderProfileBar() {
+      const bar = document.getElementById('profileBar');
+      const profiles = getProfiles();
+      bar.innerHTML = profiles.map(p => `
+        <div class="profile-chip ${p.id === getActiveId() ? 'active' : ''}"
+             onclick="switchToProfile('${p.id}')">
+          <div class="dot"></div>
+          ${p.avatar} ${p.name}
+        </div>
+      `).join('') + `
+        <div class="profile-chip profile-add" onclick="addProfile()">＋ 添加</div>
+      `;
+    }
+
+    function switchToProfile(id) {
+      setActiveId(id);
+      renderProfileBar();
+      loadChat();
+      showToast(`已切换到 ${getActiveProfile().name}`);
+    }
+
+    function addProfile() {
+      const name = prompt('小朋友的名字？');
+      if (!name) return;
+      const profiles = getProfiles();
+      const id = 'kid_' + Date.now();
+      const grade = parseInt(prompt('几年级？（填数字，如 8 代表初二）')||'0');
+      profiles.push({ id, name, avatar:'👦', apiKey:'', apiUrl:'', model:'deepseek-chat', grade });
+      saveProfiles(profiles);
+      setActiveId(id);
+      renderProfileBar();
+      loadChat();
+    }
+
+    // ============ Chat State ============
+    let messages = [];
+    let isLoading = false;
+    let currentSubject = 'general';
+
+    function loadChat() {
+      const profile = getActiveProfile();
+      messages = getHistory(profile.id);
+      currentSubject = 'general';
+      document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+      document.querySelector('.subject-chip').classList.add('active');
+      renderMessages();
+    }
+
+    function renderMessages() {
+      const msgs = document.getElementById('messages');
+      // 只移除消息泡泡，保留 welcome 元素
+      Array.from(msgs.children).forEach(child => {
+        if (child.id !== 'welcome') child.remove();
+      });
+      if (messages.length === 0) {
+        const welcome = document.getElementById('welcome');
+        if (welcome) {
+          msgs.appendChild(welcome);
+          welcome.style.display = 'block';
+        }
+        return;
+      }
+      document.getElementById('welcome').style.display = 'none';
+      messages.forEach(m => {
+        const row = document.createElement('div');
+        row.className = `msg-row ${m.role}`;
+        const avatarContent = m.role === 'teacher' ? '🎓' : (getActiveProfile().avatar || '👦');
+        row.innerHTML = `
+          <div class="msg-avatar">${avatarContent}</div>
+          <div>
+            <div class="bubble">${escapeHtml(m.content)}</div>
+            <div class="msg-time">${formatTime(m.time)}</div>
+          </div>`;
+        msgs.appendChild(row);
+      });
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    }
+    function formatTime(iso) {
+      try { return new Date(iso).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}); }
+      catch(e) { return ''; }
+    }
+
+    // ============ Subject ============
+    function selectSubject(el) {
+      document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      currentSubject = el.dataset.subject;
+      // Start new chat on subject switch
+      messages = [];
+      const msgs = document.getElementById('messages');
+      msgs.innerHTML = '';
+      msgs.appendChild(document.getElementById('welcome'));
+      document.getElementById('welcome').style.display = 'block';
+    }
+
+    // ============ Send ============
+    function sendQuick(text) {
+      document.getElementById('userInput').value = text;
+      sendMessage();
+    }
+    function autoResize(t) { t.style.height='auto'; t.style.height=Math.min(t.scrollHeight,100)+'px'; }
+    function handleKeydown(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+
+    function sendMessage() {
+      const input = document.getElementById('userInput');
+      const text = input.value.trim();
+      if (!text || isLoading) return;
+
+      const profile = getActiveProfile();
+      if (!profile.apiKey) {
+        showToast('请先配置 API Key（点右上角⚙️）');
+        openSettings();
+        return;
+      }
+
+      messages.push({ role:'user', content:text, time:new Date().toISOString() });
+      input.value = '';
+      input.style.height = 'auto';
+      isLoading = true;
+      document.getElementById('sendBtn').disabled = true;
+      renderMessages();
+      showTyping();
+
+      callAPI(profile, messages);
+    }
+
+    async function callAPI(profile, msgs) {
+      const url = profile.apiUrl || 'https://api.deepseek.com/v1/chat/completions';
+      const systemPrompt = buildSystemPrompt(profile, currentSubject);
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${profile.apiKey}`
+          },
+          body: JSON.stringify({
+            model: profile.model || 'deepseek-chat',
+            messages: [
+              { role:'system', content: systemPrompt },
+              ...msgs.filter(m => m.role!=='system').map(m => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content
+              }))
+            ],
+            temperature: 0.7,
+            max_tokens: 1500
+          })
+        });
+
+        hideTyping();
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({}));
+          throw new Error(err.error?.message || `API 错误 ${res.status}`);
+        }
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content || '抱歉，我没听清，能再说一遍吗？';
+        messages.push({ role:'teacher', content:reply, time:new Date().toISOString() });
+        renderMessages();
+        saveHistory(profile.id, messages);
+      } catch(e) {
+        hideTyping();
+        let errMsg = `哎呀，出了点小问题：${e.message}\n\n请检查 API Key 是否正确，或联系爸爸妈妈。`;
+        if (e.name === 'TypeError' && window.location.protocol === 'file:') {
+          errMsg = `⚠️ 无法发送消息！\n\n因为你直接双击打开了 HTML 文件，浏览器出于安全考虑阻止了网络请求。\n\n✅ 解决方法：\n1. 关闭此页面\n2. 打开文件夹里的「双击启动.bat」\n3. 从自动打开的网页使用`;
+        } else if (e.name === 'TypeError') {
+          errMsg = `⚠️ 网络连接失败\n\n请检查：\n1. 网络是否正常\n2. API 地址是否正确\n3. 公司/学校网络可能需要特殊设置`;
+        }
+        messages.push({ role:'teacher', content:errMsg, time:new Date().toISOString() });
+        renderMessages();
+      } finally {
+        isLoading = false;
+        document.getElementById('sendBtn').disabled = false;
+      }
+    }
+
+    function showTyping() {
+      const msgs = document.getElementById('messages');
+      const row = document.createElement('div');
+      row.className = 'msg-row teacher';
+      row.id = 'typingRow';
+      row.innerHTML = `
+        <div class="msg-avatar">🎓</div>
+        <div class="typing-indicator">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>`;
+      msgs.appendChild(row);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+    function hideTyping() {
+      document.getElementById('typingRow')?.remove();
+    }
+
+    // ============ System Prompt ============
+    function buildSystemPrompt(profile, subject) {
+      const child = profile.name || '小朋友';
+      const grade = profile.grade || 0;
+
+      // 年级描述
+      let gradeDesc = '小学';
+      if (grade >= 7 && grade <= 9) gradeDesc = '初中';
+      else if (grade >= 10) gradeDesc = '高中';
+
+      // 根据年级调整深度
+      let depthGuide = '';
+      if (grade >= 10) {
+        depthGuide = '对方是高中生，可以用较抽象的概念，适当引入专业术语（解释后使用），逻辑要严谨，可以讨论开放性问题和社会议题。';
+      } else if (grade >= 7) {
+        depthGuide = '对方是初中生，概念解释要具体，多用生活例子，可以适当引入抽象思维，鼓励批判性思考。';
+      } else if (grade >= 4) {
+        depthGuide = '对方是小学生中高年级，多用具体例子和比喻，语言生动，避免抽象概念。';
+      } else if (grade > 0) {
+        depthGuide = '对方是小学低年级小朋友，用最简单的语言，大量比喻和生活例子，一句话不要太长。';
+      }
+
+      const subjects = {
+        general: '你是一位全科辅导老师，擅长用简单有趣的方式解释各种知识，激发小朋友的学习兴趣。',
+        math: '你是一位数学老师，擅长把抽象的数学概念变成具体的生活例子。你绝不直接给答案，而是用苏格拉底式提问引导小朋友自己思考出解题步骤。',
+        chinese: '你是一位语文老师，热爱文字和阅读。你引导小朋友品味文字之美，不替他们写作文，而是帮他们理清思路、积累好词好句、激发表达欲。',
+        english: '你是一位英语老师，让学英语变得有趣。你会用简单的英语和小朋友对话，纠正语法错误时很温和，鼓励小朋友大胆开口说。',
+        science: '你是一位科学老师，对世界充满好奇。你鼓励小朋友观察现象、提出问题、做假设，像小科学家一样思考。',
+        history: '你是一位历史老师，擅长把过去的故事讲得生动有趣。你引导小朋友理解历史人物的选择，培养批判性思维。'
+      };
+
+      return `你是"小亮老师"，一位专为${gradeDesc}生设计的AI学习伙伴。你正在和${child}（${grade > 0 ? '约'+grade+'年级' : '小朋友'}）对话。
+
+【你的教学理念】
+${subjects[subject] || subjects.general}
+
+【年级适配要求】
+${depthGuide}
+
+【安全边界 - 必须严格遵守】
+1. 隐私保护：绝不询问、收集或透露任何个人隐私信息（真实姓名、住址、学校、联系方式等）。如果小朋友主动透露，温和地提醒他们保护隐私，并建议和父母讨论。
+2. 适龄内容：只提供适合${gradeDesc}生的内容。不讨论成人话题、暴力、恐怖、色情或其他不适合的内容。
+3. 不直接给答案：当小朋友问作业题时，绝不直接给出完整答案。你必须：
+   - 先确认他们理解了题目意思
+   - 引导他们回忆相关知识点
+   - 用苏格拉底式提问（一步步问问题）帮助他们自己找到答案
+   - 可以给出类似的例题来解释解题方法
+   - 在他们自己得出答案后给予肯定和鼓励
+4. 鼓励式教学：永远保持耐心、温和、鼓励的态度。小朋友答错时，先肯定他们的思考，再温和地引导他们修正。
+5. 敏感话题：遇到可能造成伤害或误解的问题（如自伤、伤害他人、危险行为），必须谨慎回应，建议小朋友向父母或老师求助。
+6. 不确定时坦诚：如果你不确定答案，诚实地说"这个问题我也不太确定，我们一起查一查"，绝不编造信息。
+7. 父母参与：鼓励小朋友在遇到重要问题时和父母讨论。如果话题涉及价值观判断，引导他们思考并建议和父母交流。
+
+【沟通风格】
+- 用简单、清晰、温暖的中文交流
+- 适当使用emoji让对话更生动（但不要过度）
+- 回答长度适中，不要太长让小朋友失去耐心
+- 多用提问引导思考，而不是灌输知识
+- 称呼小朋友为"${child}"
+- 语气像一个大哥哥/大姐姐，而不是严肃的老师
+
+注意：当前时间 ${new Date().toLocaleString('zh-CN')}，如果小朋友问"今天几号"等问题，可以参考这个时间。`;
+    }
+
+    // ============ Settings ============
+    function openSettings() {
+      const p = getActiveProfile();
+      document.getElementById('settingName').value = p.name || '';
+      document.getElementById('settingApiKey').value = p.apiKey || '';
+      document.getElementById('settingApiUrl').value = p.apiUrl || '';
+      document.getElementById('settingModel').value = p.model || 'deepseek-chat';
+      document.getElementById('settingGrade').value = p.grade ?? 0;
+      document.getElementById('settingsModal').classList.add('active');
+    }
+    function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+    function saveSettings() {
+      const profiles = getProfiles();
+      const idx = profiles.findIndex(p => p.id === getActiveId());
+      if (idx === -1) return;
+      profiles[idx].name = document.getElementById('settingName').value.trim() || profiles[idx].name;
+      profiles[idx].apiKey = document.getElementById('settingApiKey').value.trim();
+      profiles[idx].apiUrl = document.getElementById('settingApiUrl').value.trim();
+      profiles[idx].model = document.getElementById('settingModel').value.trim() || 'deepseek-chat';
+      profiles[idx].grade = parseInt(document.getElementById('settingGrade').value) || 0;
+      saveProfiles(profiles);
+      renderProfileBar();
+      closeSettings();
+      showToast('已保存！');
+    }
+
+    // ============ Parent Panel ============
+    function openParentPanel() {
+      const p = getActiveProfile();
+      document.getElementById('pProfileLabel').textContent = `${p.avatar} ${p.name} 的学习记录`;
+      renderParentHistory(p);
+      document.getElementById('parentModal').classList.add('active');
+    }
+    function closeParentPanel() { document.getElementById('parentModal').classList.remove('active'); }
+
+    function renderParentHistory(profile) {
+      const history = getHistory(profile.id);
+      const el = document.getElementById('pHistory');
+      if (history.length === 0) { el.innerHTML = '<div style="color:#999;">暂无对话记录</div>'; return; }
+
+      // Group into sessions
+      let sessions = [];
+      let current = [];
+      history.forEach(m => {
+        if (m.role === 'user' && current.length > 0) { sessions.push([...current]); current = []; }
+        current.push(m);
+      });
+      if (current.length > 0) sessions.push(current);
+
+      el.innerHTML = sessions.slice(-8).reverse().map(s => {
+        const firstQ = s.find(m => m.role === 'user');
+        const time = s[0]?.time ? new Date(s[0].time).toLocaleString('zh-CN') : '';
+        return `<div style="padding:8px 0;border-bottom:1px solid #eee;">
+          <div style="font-weight:600;font-size:13px;">${escapeHtml(firstQ?.content?.substring(0,30)||'对话')}${firstQ?.content?.length>30?'...':''}</div>
+          <div style="font-size:11px;color:#999;">${time} · ${s.length}条消息</div>
+        </div>`;
+      }).join('');
+    }
+
+    function switchProfileParent() {
+      closeParentPanel();
+      // Scroll to profile bar
+      document.getElementById('profileBar').scrollIntoView({ behavior:'smooth' });
+      showToast('请点击上方的小朋友名字切换');
+    }
+
+    function exportHistory() {
+      const p = getActiveProfile();
+      const history = getHistory(p.id);
+      if (history.length === 0) { showToast('暂无记录'); return; }
+      let text = `小亮老师 - ${p.name} 的学习记录\n导出时间：${new Date().toLocaleString('zh-CN')}\n${'='.repeat(40)}\n\n`;
+      history.forEach(m => {
+        const who = m.role === 'user' ? p.name : '小亮老师';
+        const time = m.time ? new Date(m.time).toLocaleString('zh-CN') : '';
+        text += `[${time}] ${who}：\n${m.content}\n\n`;
+      });
+      const blob = new Blob([text], { type:'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `小亮老师_${p.name}_学习记录_${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      showToast('已导出！');
+    }
+
+    // ============ Toast ============
+    function showToast(msg) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    // ============ Init ============
+    ensureProfiles();
+    renderProfileBar();
+    loadChat();
+
+    // 检测是否在 file:// 协议下（直接双击打开 HTML 会导致 API 请求被阻止）
+    if (window.location.protocol === 'file:') {
+      document.getElementById('warningBar').classList.add('active');
+    }
+
+    // Close modals on mask click
+    document.querySelectorAll('.modal-mask').forEach(m => {
+      m.addEventListener('click', e => { if(e.target === m) m.classList.remove('active'); });
+    });
+  </script>
+</body>
+</html>
